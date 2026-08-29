@@ -1462,7 +1462,10 @@ code {
 .tabs {
     display: flex;
     gap: 4px;
-    overflow-x: auto;
+    /* Wrapping rather than scrolling: three short tabs never need a scrollbar,
+       and overflow-x here would also give the active tab's 1px underline a
+       vertical scrollbar to hang off. */
+    flex-wrap: wrap;
     border-bottom: 1px solid var(--line);
     margin-bottom: 2px;
 }
