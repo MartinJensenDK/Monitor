@@ -6,6 +6,8 @@
  * @var string $cron
  * @var ?string $schedulerLastRun
  * @var array<string,int> $counts
+ * @var bool $mailConfigured
+ * @var string $pingTransport
  */
 
 $lastRunAge = $schedulerLastRun === null ? null : max(0, time() - (strtotime($schedulerLastRun . ' UTC') ?: time()));
@@ -159,14 +161,85 @@ $schedulerHealthy = $lastRunAge !== null && $lastRunAge < 300;
         </section>
 
         <section class="panel">
-            <div class="panel__head"><h2>Notifications</h2></div>
+            <div class="panel__head">
+                <h2>Email</h2>
+                <span class="pill pill--<?= $settings['notifications_enabled'] === '1' ? 'up' : 'paused' ?>" style="margin-left:auto;">
+                    <?= $settings['notifications_enabled'] === '1' ? 'sending' : 'off' ?>
+                </span>
+            </div>
             <div class="panel__body">
-                <p class="mt-0 muted">
-                    Email delivery and the per-monitor notification rules arrive in the next release. The channels and rules
-                    are already in the database, so nothing here has to be re-entered later.
-                </p>
-                <p style="margin-top:12px;">
-                    <a class="btn" href="/settings/activity"><?= icon('history') ?>Open the activity log</a>
+                <label class="check">
+                    <input type="checkbox" name="notifications_enabled" value="1"
+                           <?= $settings['notifications_enabled'] === '1' ? 'checked' : '' ?>>
+                    <span class="check__text">
+                        Send notification emails
+                        <small>Off means checks still run and incidents are still recorded — nobody is emailed about them.</small>
+                    </span>
+                </label>
+
+                <div class="form-grid" style="margin-top:16px;">
+                    <div class="field">
+                        <label class="field__label" for="mail_driver">How to send</label>
+                        <select class="select" id="mail_driver" name="mail_driver">
+                            <option value="smtp" <?= $settings['mail_driver'] === 'smtp' ? 'selected' : '' ?>>SMTP server</option>
+                            <option value="sendmail" <?= $settings['mail_driver'] === 'sendmail' ? 'selected' : '' ?>>Local sendmail</option>
+                        </select>
+                        <span class="field__hint">SMTP delivers more reliably. Local sendmail needs correct SPF and DKIM on this server.</span>
+                    </div>
+
+                    <div class="field">
+                        <label class="field__label" for="mail_from_address">Sender address</label>
+                        <input class="input" id="mail_from_address" name="mail_from_address" type="email"
+                               value="<?= e($settings['mail_from_address']) ?>" placeholder="monitor@example.com">
+                    </div>
+
+                    <div class="field">
+                        <label class="field__label" for="mail_from_name">Sender name</label>
+                        <input class="input" id="mail_from_name" name="mail_from_name"
+                               value="<?= e($settings['mail_from_name']) ?>">
+                    </div>
+
+                    <div class="field">
+                        <label class="field__label" for="smtp_host">SMTP host</label>
+                        <input class="input input--mono" id="smtp_host" name="smtp_host"
+                               value="<?= e($settings['smtp_host']) ?>" placeholder="smtp.example.com">
+                    </div>
+
+                    <div class="field">
+                        <label class="field__label" for="smtp_port">Port</label>
+                        <input class="input num" id="smtp_port" name="smtp_port" type="number" min="1" max="65535"
+                               value="<?= e($settings['smtp_port']) ?>">
+                        <span class="field__hint">587 with STARTTLS, or 465 with SSL.</span>
+                    </div>
+
+                    <div class="field">
+                        <label class="field__label" for="smtp_encryption">Encryption</label>
+                        <select class="select" id="smtp_encryption" name="smtp_encryption">
+                            <?php foreach (['tls' => 'STARTTLS', 'ssl' => 'SSL/TLS', 'none' => 'None'] as $value => $label): ?>
+                                <option value="<?= e($value) ?>" <?= $settings['smtp_encryption'] === $value ? 'selected' : '' ?>>
+                                    <?= e($label) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label class="field__label" for="smtp_username">SMTP user</label>
+                        <input class="input" id="smtp_username" name="smtp_username" autocomplete="off"
+                               value="<?= e($settings['smtp_username']) ?>">
+                        <span class="field__hint">Leave empty for a server that needs no authentication.</span>
+                    </div>
+
+                    <div class="field">
+                        <label class="field__label" for="smtp_password">SMTP password</label>
+                        <input class="input" id="smtp_password" name="smtp_password" type="password" autocomplete="new-password"
+                               placeholder="<?= $settings['smtp_password'] !== '' ? 'Unchanged' : '' ?>">
+                        <span class="field__hint">Encrypted with APP_KEY before it is stored. Leave empty to keep the current one.</span>
+                    </div>
+                </div>
+
+                <p class="field__hint" style="margin-top:14px;">
+                    Save first, then send yourself a test — the test uses what is stored, not what is on screen.
                 </p>
             </div>
         </section>
@@ -177,4 +250,51 @@ $schedulerHealthy = $lastRunAge !== null && $lastRunAge < 300;
             </div>
         </div>
     </form>
+
+    <section class="panel">
+        <div class="panel__head"><h2>Send a test email</h2></div>
+        <div class="panel__body">
+            <?php if (!$mailConfigured): ?>
+                <p class="muted mt-0">Fill in the sender address and the SMTP host above, save, and the test becomes available.</p>
+            <?php else: ?>
+                <form method="post" action="/settings/test-email" class="filters">
+                    <?= csrf_field() ?>
+                    <label class="field" style="flex:1;min-width:240px;">
+                        <span class="visually-hidden">Recipient</span>
+                        <input class="input" name="recipient" type="email" required
+                               value="<?= e((string) ($authUser['email'] ?? '')) ?>">
+                    </label>
+                    <button class="btn" type="submit"><?= icon('mail') ?>Send test</button>
+                </form>
+                <p class="field__hint" style="margin-top:10px;">
+                    A failure comes back with the reason the mail server gave, not just "could not send".
+                </p>
+            <?php endif; ?>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel__head">
+            <h2>Notification channels</h2>
+            <a class="btn btn--sm" style="margin-left:auto;" href="/settings/channels"><?= icon('mail') ?>Manage channels</a>
+        </div>
+        <div class="panel__body">
+            <p class="muted mt-0">
+                A channel is a named list of recipients. Each monitor decides which channels it notifies and on what —
+                down, recovery, slow responses, or an expiring certificate.
+            </p>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel__head"><h2>Ping</h2></div>
+        <div class="panel__body">
+            <p class="mt-0"><?= e(App\Checks\PingTransport::describe($pingTransport)) ?></p>
+            <?php if (!App\Checks\PingTransport::isIcmp($pingTransport)): ?>
+                <p class="field__hint" style="margin-top:10px;">To send real ICMP, a server administrator runs this once:</p>
+                <code class="code"><?= e(App\Checks\PingTransport::enableHint()) ?></code>
+                <p class="field__hint" style="margin-top:10px;">Monitor re-checks daily and switches over on its own.</p>
+            <?php endif; ?>
+        </div>
+    </section>
 </div>

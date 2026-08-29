@@ -25,6 +25,7 @@ require __DIR__ . '/../app/Support/helpers.php';
 
 use App\Core\App;
 use App\Core\Db;
+use App\Notifications\CertificateWatcher;
 use App\Scheduler\Retention;
 use App\Scheduler\Rollup;
 use App\Scheduler\Runner;
@@ -71,6 +72,7 @@ try {
 
         if (Retention::due()) {
             $removed = Retention::prune();
+            CertificateWatcher::run();
             Retention::markRun();
             if ($verbose) {
                 foreach ($removed as $table => $count) {

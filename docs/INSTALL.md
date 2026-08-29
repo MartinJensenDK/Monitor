@@ -152,6 +152,70 @@ In CloudPanel: **Sites → your site → Cron Jobs → Add Cron Job**, every min
 
 ---
 
+## Email notifications
+
+Nothing is emailed until two things are true: email is configured, and
+**Send notification emails** is on. Both live under **Settings → Email**.
+
+1. Pick **SMTP server** (recommended) or **Local sendmail**.
+2. Fill in the sender address — some providers insist it matches the account.
+3. For SMTP: host, port, encryption, and a user name and password if the server
+   wants them. 587 with STARTTLS suits most providers; 465 uses SSL/TLS.
+4. Save, then use **Send a test email**. A failure reports what the mail server
+   said — a rejected password reads as a rejected password, not "could not send".
+
+The SMTP password is encrypted with `APP_KEY` before it is stored, so a database
+dump alone does not leak it.
+
+### Who gets told, and about what
+
+A **channel** is a named list of recipients — *Ops on call*, *Support*, one
+person. Add them under **Settings → Notification channels**.
+
+Each monitor then chooses its channels and, per channel:
+
+| Setting | What it does |
+|---|---|
+| Events | Down, recovery, slow responses, certificate expiring — any combination |
+| Wait for this many failures | Counted after retries, so 1 means the first confirmed failure. Raise it for a flaky endpoint you do not want to hear about immediately |
+| Repeat every | While the incident stays open. 0 sends once |
+| Certificate warning | Days of notice before a TLS certificate expires |
+| Stay quiet between | An hour range, in the site's time zone, that wraps past midnight |
+
+Every decision is written to the log at the bottom of the channels page: sent,
+failed with the reason, or skipped with the reason. Start there when an email you
+expected did not arrive.
+
+Local sendmail works, but mail from a server without correct SPF and DKIM records
+usually lands in spam. If alerts go missing, that is the first thing to check.
+
+## Ping and ICMP
+
+Sending an ICMP echo needs a privilege that plenty of hosts do not hand out.
+Monitor works out what it is allowed to do and tells you on the ping monitor's
+own page rather than reporting numbers it cannot stand behind:
+
+1. **Unprivileged ICMP socket** — used when the kernel allows it.
+2. **The system `ping` command** — used when it exists and carries `cap_net_raw`.
+3. **TCP connect timing** — the fallback. It times a connection to a port you
+   choose (443 by default) instead of sending an echo request.
+
+The fallback answers "is this host reachable and how fast", which is what most
+people want from a ping check. It will not notice a host that answers ICMP but
+has closed the port you picked, so choose a port the host actually serves.
+
+To enable real ICMP, a server administrator runs this once:
+
+```bash
+sudo sysctl -w net.ipv4.ping_group_range="0 2147483647"
+```
+
+Make it survive a reboot by adding `net.ipv4.ping_group_range = 0 2147483647` to
+`/etc/sysctl.d/99-monitor.conf`. Installing `iputils-ping` works too. Monitor
+re-checks once a day and switches over on its own — no restart, no setting.
+
+---
+
 ## Where the database password lives
 
 `.env` in the project root:
@@ -204,6 +268,17 @@ monitoring your own network.
 They cannot: the runner takes a MySQL advisory lock and a second run exits
 immediately. If checks are consistently late, raise **Checks at once** in
 Settings or lengthen the intervals.
+
+**No email arrives.**
+Work down the list: is **Send notification emails** on, does **Send a test email**
+succeed, does the monitor have a channel with your address, and does the log at the
+bottom of the channels page show `sent`, `failed` or `skipped`? A `skipped` row
+names the rule that stopped it — quiet hours, or a failure threshold not reached
+yet. A `failed` row carries the mail server's own words.
+
+**A ping check reports TCP connect timing.**
+This server may not send ICMP. That is a host restriction, not a fault — see
+[Ping and ICMP](#ping-and-icmp) for the one command that changes it.
 
 **Assets 404 after install.**
 The document root is still the project root rather than `public/`. The

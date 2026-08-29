@@ -64,6 +64,11 @@ return static function (Router $router): void {
     // Settings and profile
     $router->get('/settings', [SettingsController::class, 'index'])->can('settings.view');
     $router->post('/settings', [SettingsController::class, 'update'])->can('settings.manage');
+    $router->post('/settings/test-email', [SettingsController::class, 'testEmail'])->can('settings.manage');
+    $router->get('/settings/channels', [SettingsController::class, 'channels'])->can('settings.view');
+    $router->post('/settings/channels', [SettingsController::class, 'storeChannel'])->can('settings.manage');
+    $router->post('/settings/channels/{id}', [SettingsController::class, 'updateChannel'])->can('settings.manage');
+    $router->post('/settings/channels/{id}/delete', [SettingsController::class, 'destroyChannel'])->can('settings.manage');
     $router->get('/settings/activity', [SettingsController::class, 'activity'])->can('audit.view');
 
     $router->get('/profile', [ProfileController::class, 'show'])->can('profile.edit');

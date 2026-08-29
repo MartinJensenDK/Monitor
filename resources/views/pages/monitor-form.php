@@ -6,7 +6,11 @@
  * @var array<int,string> $assigned   group id => access
  */
 
+use App\Checks\EndpointChecker;
+use App\Checks\PingChecker;
+use App\Checks\PingTransport;
 use App\Domain\Monitors;
+use App\Notifications\Channels;
 
 $isEdit = $monitor !== null;
 $action = $isEdit ? '/monitors/' . (int) $monitor['id'] : '/monitors';
@@ -72,10 +76,16 @@ foreach ((array) ($config['headers'] ?? []) as $name => $headerValue) {
                 </div>
 
                 <div class="field field--wide">
-                    <label class="field__label" for="target"><?= e(t('monitor.target')) ?></label>
-                    <input class="input input--mono" id="target" name="target" required
-                           value="<?= e($value('target')) ?>" placeholder="https://example.com/health">
-                    <span class="field__hint">The full address to request, including https://.</span>
+                    <label class="field__label" for="target" data-target-label><?= e(t('monitor.target')) ?></label>
+                    <div class="inline" style="align-items:flex-start;">
+                        <input class="input input--mono" id="target" name="target" required data-target-input
+                               value="<?= e($value('target')) ?>" placeholder="https://example.com">
+                        <span data-type-fields="port" style="width:110px;flex:none;" hidden>
+                            <input class="input num" name="port" type="number" min="1" max="65535"
+                                   value="<?= e($value('port')) ?>" placeholder="Port" aria-label="Port">
+                        </span>
+                    </div>
+                    <span class="field__hint" data-target-hint>The full address to request, including https://.</span>
                 </div>
             </div>
         </div>
@@ -130,7 +140,7 @@ foreach ((array) ($config['headers'] ?? []) as $name => $headerValue) {
         </div>
     </section>
 
-    <section class="panel" data-type-fields="http">
+    <section class="panel" data-type-fields="http endpoint">
         <div class="panel__head">
             <h2>What counts as healthy</h2>
         </div>
@@ -227,6 +237,98 @@ foreach ((array) ($config['headers'] ?? []) as $name => $headerValue) {
         </div>
     </section>
 
+    <section class="panel" data-type-fields="endpoint" hidden>
+        <div class="panel__head">
+            <h2>What the JSON has to say</h2>
+        </div>
+        <div class="panel__body">
+            <p class="field__hint" style="margin-bottom:14px;">
+                "HTTP 200" is a weak promise for an API. Read a value out of the response and say what it should be.
+                Use dots to go deeper — <code>data.queue.depth</code> — and a number for a position in a list:
+                <code>items.0.status</code>.
+            </p>
+
+            <div class="assertions" data-assertions>
+                <?php
+                $assertionRows = $config['assertions'] ?? [];
+                if ($assertionRows === []) {
+                    $assertionRows = [['path' => '', 'operator' => 'equals', 'value' => '']];
+                }
+                ?>
+                <?php foreach ($assertionRows as $row): ?>
+                    <div class="assertion" data-assertion-row>
+                        <input class="input input--mono" name="assert_path[]" placeholder="status"
+                               value="<?= e((string) ($row['path'] ?? '')) ?>" aria-label="Path">
+                        <select class="select" name="assert_operator[]" aria-label="Comparison">
+                            <?php foreach (EndpointChecker::OPERATORS as $key => $label): ?>
+                                <option value="<?= e($key) ?>" <?= ($row['operator'] ?? 'equals') === $key ? 'selected' : '' ?>>
+                                    <?= e($label) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <input class="input input--mono" name="assert_value[]" placeholder="ok"
+                               value="<?= e((string) ($row['value'] ?? '')) ?>" aria-label="Value">
+                        <button class="btn btn--ghost btn--icon" type="button" data-remove-assertion
+                                aria-label="Remove this assertion"><?= icon('trash') ?></button>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+
+            <p style="margin-top:12px;">
+                <button class="btn btn--sm" type="button" data-add-assertion><?= icon('plus') ?>Add an assertion</button>
+            </p>
+        </div>
+    </section>
+
+    <section class="panel" data-type-fields="ping" hidden>
+        <div class="panel__head">
+            <h2>How the ping is sent</h2>
+        </div>
+        <div class="panel__body">
+            <p class="flash flash--<?= PingTransport::isIcmp($pingTransport) ? 'success' : 'warning' ?>" style="margin-bottom:16px;">
+                <?= icon(PingTransport::isIcmp($pingTransport) ? 'check' : 'alert') ?>
+                <span><?= e(PingTransport::describe($pingTransport)) ?></span>
+            </p>
+
+            <?php if (!PingTransport::isIcmp($pingTransport)): ?>
+                <div class="form-grid">
+                    <div class="field">
+                        <label class="field__label" for="fallback_port">Fallback port</label>
+                        <input class="input num" id="fallback_port" name="fallback_port" type="number" min="1" max="65535"
+                               value="<?= e($value('fallback_port', (string) PingChecker::DEFAULT_FALLBACK_PORT)) ?>">
+                        <span class="field__hint">The port to time a connection to. 443 or 80 suit most public hosts.</span>
+                    </div>
+                </div>
+                <p class="field__hint" style="margin-top:12px;">
+                    To send real ICMP instead, a server administrator runs
+                    <code><?= e(PingTransport::enableHint()) ?></code> once. Monitor re-checks daily.
+                </p>
+            <?php else: ?>
+                <input type="hidden" name="fallback_port"
+                       value="<?= e($value('fallback_port', (string) PingChecker::DEFAULT_FALLBACK_PORT)) ?>">
+            <?php endif; ?>
+        </div>
+    </section>
+
+    <section class="panel" data-type-fields="port" hidden>
+        <div class="panel__head">
+            <h2>What the port should answer</h2>
+        </div>
+        <div class="panel__body">
+            <div class="form-grid">
+                <div class="field field--wide">
+                    <label class="field__label" for="banner">Expected greeting <span class="muted">(optional)</span></label>
+                    <input class="input input--mono" id="banner" name="banner" value="<?= e($value('banner')) ?>"
+                           placeholder="SSH-2.0">
+                    <span class="field__hint">
+                        Some services announce themselves on connect. Fill this in and the check also fails when the
+                        greeting changes — an open port is not always a working service.
+                    </span>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <section class="panel">
         <div class="panel__head">
             <h2>Who can see it</h2>
@@ -266,6 +368,115 @@ foreach ((array) ($config['headers'] ?? []) as $name => $headerValue) {
                                 <?php endforeach; ?>
                             </div>
                         </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel__head">
+            <h2>Who gets told</h2>
+            <?php if (can('settings.manage')): ?>
+                <a class="btn btn--sm" style="margin-left:auto;" href="/settings/channels"><?= icon('mail') ?>Manage channels</a>
+            <?php endif; ?>
+        </div>
+        <div class="panel__body">
+            <?php if ($channels === []): ?>
+                <p class="muted mt-0">
+                    No notification channels yet.
+                    <?= can('settings.manage')
+                        ? '<a href="/settings/channels">Add one</a> to start receiving email about this monitor.'
+                        : 'Ask an administrator to add one.' ?>
+                </p>
+            <?php else: ?>
+                <div class="stack">
+                    <?php foreach ($channels as $channel): ?>
+                        <?php
+                        $channelId = (int) $channel['id'];
+                        $rule = $rules[$channelId] ?? ($isEdit ? null : Channels::DEFAULT_RULES);
+                        $on = $rule !== null;
+                        $rule ??= Channels::DEFAULT_RULES;
+                        $clock = static fn (?string $v): string => $v === null ? '' : substr($v, 0, 5);
+                        ?>
+                        <fieldset class="fieldset">
+                            <legend><?= e((string) $channel['name']) ?></legend>
+
+                            <label class="check">
+                                <input type="checkbox" name="notify[<?= $channelId ?>][enabled]" value="1"
+                                       <?= $on ? 'checked' : '' ?>
+                                       data-channel-toggle="#channel-<?= $channelId ?>">
+                                <span class="check__text">
+                                    Send email to this channel
+                                    <small><?= e(implode(', ', $channel['recipients']) ?: 'No recipients yet') ?></small>
+                                </span>
+                            </label>
+
+                            <div id="channel-<?= $channelId ?>" style="margin-top:14px;" hidden>
+                                <div class="form-grid">
+                                    <label class="check">
+                                        <input type="checkbox" name="notify[<?= $channelId ?>][notify_down]" value="1"
+                                               <?= (int) $rule['notify_down'] === 1 ? 'checked' : '' ?>>
+                                        <span class="check__text">When it goes down</span>
+                                    </label>
+                                    <label class="check">
+                                        <input type="checkbox" name="notify[<?= $channelId ?>][notify_up]" value="1"
+                                               <?= (int) $rule['notify_up'] === 1 ? 'checked' : '' ?>>
+                                        <span class="check__text">When it recovers</span>
+                                    </label>
+                                    <label class="check">
+                                        <input type="checkbox" name="notify[<?= $channelId ?>][notify_degraded]" value="1"
+                                               <?= (int) $rule['notify_degraded'] === 1 ? 'checked' : '' ?>>
+                                        <span class="check__text">When it turns slow<small>Needs a degraded threshold.</small></span>
+                                    </label>
+                                    <label class="check">
+                                        <input type="checkbox" name="notify[<?= $channelId ?>][notify_cert_expiry]" value="1"
+                                               <?= (int) $rule['notify_cert_expiry'] === 1 ? 'checked' : '' ?>>
+                                        <span class="check__text">Before the TLS certificate expires</span>
+                                    </label>
+                                </div>
+
+                                <div class="form-grid" style="margin-top:14px;">
+                                    <div class="field">
+                                        <label class="field__label">Wait for this many failures</label>
+                                        <input class="input num" type="number" min="1" max="20"
+                                               name="notify[<?= $channelId ?>][failure_threshold]"
+                                               value="<?= (int) $rule['failure_threshold'] ?>">
+                                        <span class="field__hint">Counted after retries, so 1 is the first confirmed failure.</span>
+                                    </div>
+
+                                    <div class="field">
+                                        <label class="field__label">Repeat every</label>
+                                        <input class="input num" type="number" min="0" max="1440" step="5"
+                                               name="notify[<?= $channelId ?>][resend_after_minutes]"
+                                               value="<?= (int) $rule['resend_after_minutes'] ?>">
+                                        <span class="field__hint">Minutes, while it stays down. 0 sends once.</span>
+                                    </div>
+
+                                    <div class="field">
+                                        <label class="field__label">Certificate warning</label>
+                                        <input class="input num" type="number" min="1" max="90"
+                                               name="notify[<?= $channelId ?>][cert_expiry_days]"
+                                               value="<?= (int) $rule['cert_expiry_days'] ?>">
+                                        <span class="field__hint">Days of notice before expiry.</span>
+                                    </div>
+
+                                    <div class="field">
+                                        <label class="field__label">Stay quiet between</label>
+                                        <div class="inline">
+                                            <input class="input num" type="time"
+                                                   name="notify[<?= $channelId ?>][quiet_hours_start]"
+                                                   value="<?= e($clock($rule['quiet_hours_start'] ?? null)) ?>">
+                                            <span class="muted">and</span>
+                                            <input class="input num" type="time"
+                                                   name="notify[<?= $channelId ?>][quiet_hours_end]"
+                                                   value="<?= e($clock($rule['quiet_hours_end'] ?? null)) ?>">
+                                        </div>
+                                        <span class="field__hint">Site time. Leave empty to be told at any hour.</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </fieldset>
                     <?php endforeach; ?>
                 </div>
             <?php endif; ?>

@@ -4,9 +4,14 @@ declare(strict_types=1);
 
 namespace App\Scheduler;
 
+use App\Checks\BatchableChecker;
 use App\Checks\CheckerFactory;
 use App\Checks\CheckResult;
-use App\Checks\HttpChecker;
+use App\Checks\PingChecker;
+use App\Checks\PingTransport;
+use App\Checks\PortChecker;
+use App\Checks\TargetGuard;
+use App\Checks\TcpProbe;
 use App\Core\Db;
 use App\Domain\Incidents;
 use App\Domain\Settings;
@@ -178,70 +183,116 @@ final class Runner
     }
 
     /**
+     * Split a tick's work by how it is best run: website and endpoint checks go
+     * out together through curl_multi, port and TCP-ping checks through one
+     * parallel connect, and anything left over runs one at a time.
+     *
      * @param array<int,array<string,mixed>> $monitors
      * @return array<int,CheckResult>
      */
     private function runBatch(array $monitors): array
     {
         $results = [];
-        $http = [];
+        $curl = [];
+        $tcp = [];
+        $sequential = [];
+        $pingTransport = null;
 
         foreach ($monitors as $monitor) {
-            if ((string) $monitor['type'] === 'http') {
-                $http[] = $monitor;
+            $id = (int) $monitor['id'];
+            $type = (string) $monitor['type'];
+
+            if (!CheckerFactory::supports($type)) {
+                $results[$id] = CheckResult::down('internal', 'No checker is registered for monitor type "' . $type . '".');
                 continue;
             }
 
-            try {
-                $results[(int) $monitor['id']] = CheckerFactory::for((string) $monitor['type'])->run($monitor);
-            } catch (Throwable $e) {
-                $results[(int) $monitor['id']] = CheckResult::down('internal', $e->getMessage());
+            $checker = CheckerFactory::for($type);
+
+            if ($checker instanceof BatchableChecker) {
+                $curl[$id] = ['monitor' => $monitor, 'checker' => $checker];
+                continue;
             }
+
+            if ($type === 'ping') {
+                $pingTransport ??= PingTransport::detect();
+                if ($pingTransport !== PingTransport::TCP) {
+                    $sequential[$id] = ['monitor' => $monitor, 'checker' => $checker];
+                    continue;
+                }
+            }
+
+            if ($type === 'port' || $type === 'ping') {
+                $host = $type === 'port' ? PortChecker::host($monitor) : PingChecker::host($monitor);
+                $guard = TargetGuard::check($host);
+
+                if (!$guard['allowed']) {
+                    $results[$id] = CheckResult::down('blocked_target', $guard['reason']);
+                    continue;
+                }
+
+                $tcp[$id] = [
+                    'monitor' => $monitor,
+                    'type' => $type,
+                    'host' => $host,
+                    'port' => $type === 'port' ? PortChecker::port($monitor) : PingChecker::fallbackPort($monitor),
+                    'timeout' => (float) max(1, (int) $monitor['timeout_seconds']),
+                ];
+                continue;
+            }
+
+            $sequential[$id] = ['monitor' => $monitor, 'checker' => $checker];
         }
 
-        foreach ($this->runHttpBatch($http) as $id => $result) {
+        foreach ($this->runCurlBatch($curl) as $id => $result) {
             $results[$id] = $result;
+        }
+
+        foreach ($this->runTcpBatch($tcp, $pingTransport ?? PingTransport::TCP) as $id => $result) {
+            $results[$id] = $result;
+        }
+
+        foreach ($sequential as $id => $entry) {
+            try {
+                $results[$id] = $entry['checker']->run($entry['monitor']);
+            } catch (Throwable $e) {
+                $results[$id] = CheckResult::down('internal', $e->getMessage());
+            }
         }
 
         return $results;
     }
 
     /**
-     * All website checks in one curl_multi run, so 50 monitors take as long as
-     * the slowest one rather than the sum of all of them.
+     * Every website and endpoint check in one curl_multi run, so 50 monitors
+     * take as long as the slowest one rather than the sum of all of them.
      *
-     * @param array<int,array<string,mixed>> $monitors
+     * @param array<int,array{monitor:array<string,mixed>,checker:BatchableChecker}> $entries
      * @return array<int,CheckResult>
      */
-    private function runHttpBatch(array $monitors): array
+    private function runCurlBatch(array $entries): array
     {
-        if ($monitors === []) {
+        if ($entries === []) {
             return [];
         }
 
         $results = [];
-        $multi = curl_multi_init();
-        /** @var array<string,array{monitor:array<string,mixed>,handle:CurlHandle}> $handles */
-        $handles = [];
         $concurrency = max(1, Settings::int('check_concurrency', 20));
+        $batch = array_slice($entries, 0, $concurrency, true);
+        $overflow = array_slice($entries, $concurrency, null, true);
 
-        foreach (array_slice($monitors, 0, $concurrency) as $monitor) {
-            $prepared = HttpChecker::prepare($monitor);
+        $multi = curl_multi_init();
+        /** @var array<int,array{monitor:array<string,mixed>,checker:BatchableChecker,handle:CurlHandle}> $handles */
+        $handles = [];
+
+        foreach ($batch as $id => $entry) {
+            $prepared = $entry['checker']->prepare($entry['monitor']);
             if ($prepared instanceof CheckResult) {
-                $results[(int) $monitor['id']] = $prepared;
+                $results[$id] = $prepared;
                 continue;
             }
-            $handles[(string) (int) $monitor['id']] = ['monitor' => $monitor, 'handle' => $prepared];
+            $handles[$id] = $entry + ['handle' => $prepared];
             curl_multi_add_handle($multi, $prepared);
-        }
-
-        // Anything past the concurrency limit waits for the next tick.
-        foreach (array_slice($monitors, $concurrency) as $monitor) {
-            try {
-                $results[(int) $monitor['id']] = (new HttpChecker())->run($monitor);
-            } catch (Throwable $e) {
-                $results[(int) $monitor['id']] = CheckResult::down('internal', $e->getMessage());
-            }
         }
 
         if ($handles !== []) {
@@ -259,16 +310,54 @@ final class Runner
                 $errors[spl_object_id($message['handle'])] = (int) $message['result'];
             }
 
-            foreach ($handles as $key => $entry) {
+            foreach ($handles as $id => $entry) {
                 $body = (string) curl_multi_getcontent($entry['handle']);
                 $errno = $errors[spl_object_id($entry['handle'])] ?? curl_errno($entry['handle']);
-                $results[(int) $key] = HttpChecker::finish($entry['monitor'], $entry['handle'], $body, $errno);
+                $results[$id] = $entry['checker']->finish($entry['monitor'], $entry['handle'], $body, $errno);
                 curl_multi_remove_handle($multi, $entry['handle']);
                 curl_close($entry['handle']);
             }
         }
 
         curl_multi_close($multi);
+
+        // Anything past the concurrency limit runs on its own.
+        foreach ($overflow as $id => $entry) {
+            try {
+                $results[$id] = $entry['checker']->run($entry['monitor']);
+            } catch (Throwable $e) {
+                $results[$id] = CheckResult::down('internal', $e->getMessage());
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Port checks, and ping checks on a server that cannot send ICMP, share one
+     * parallel connect round.
+     *
+     * @param array<int,array{monitor:array<string,mixed>,type:string,host:string,port:int,timeout:float}> $entries
+     * @return array<int,CheckResult>
+     */
+    private function runTcpBatch(array $entries, string $pingTransport): array
+    {
+        if ($entries === []) {
+            return [];
+        }
+
+        $targets = [];
+        foreach ($entries as $id => $entry) {
+            $targets[$id] = ['host' => $entry['host'], 'port' => $entry['port'], 'timeout' => $entry['timeout']];
+        }
+
+        $results = [];
+        foreach (TcpProbe::connectMany($targets) as $id => $outcome) {
+            $entry = $entries[$id];
+            $results[$id] = $entry['type'] === 'port'
+                ? PortChecker::toCheckResult($entry['monitor'], $outcome)
+                : PingChecker::toCheckResult($entry['monitor'], $outcome, $pingTransport);
+        }
 
         return $results;
     }
@@ -297,19 +386,32 @@ final class Runner
 
         $incidentId = $monitor['current_incident_id'] === null ? null : (int) $monitor['current_incident_id'];
 
+        $failures = (int) $monitor['consecutive_failures'] + 1;
+
         if ($result->status === 'down') {
-            if ($previous !== 'down') {
+            if ($previous !== 'down' || $incidentId === null) {
                 $incidentId = Incidents::open($monitorId, (string) $result->errorCode, (string) $result->errorMessage);
-                Dispatcher::monitorWentDown($monitor, $result, $incidentId);
-            } elseif ($incidentId !== null) {
-                Incidents::recordFailure($incidentId, (string) $result->errorMessage);
+                Dispatcher::monitorWentDown($monitor, $result, $incidentId, $failures);
             } else {
-                $incidentId = Incidents::open($monitorId, (string) $result->errorCode, (string) $result->errorMessage);
+                Incidents::recordFailure($incidentId, (string) $result->errorMessage);
+
+                // Below the threshold at the time it opened, or past the resend
+                // interval — either way the channel may still be owed an email.
+                $incident = Incidents::find($incidentId);
+                if ($incident !== null) {
+                    Dispatcher::monitorWentDown($monitor, $result, $incidentId, $failures);
+                    Dispatcher::incidentStillOpen($monitor, $incident);
+                }
             }
         } else {
             if ($previous === 'down') {
+                $open = Incidents::openFor($monitorId);
+                $downtime = $open === null
+                    ? 0
+                    : max(0, time() - (strtotime((string) $open['started_at'] . ' UTC') ?: time()));
+
                 Incidents::resolveOpen($monitorId);
-                Dispatcher::monitorRecovered($monitor, $result, $incidentId);
+                Dispatcher::monitorRecovered($monitor, $result, $open === null ? $incidentId : (int) $open['id'], $downtime);
                 $incidentId = null;
             }
             if ($result->status === 'degraded' && $previous !== 'degraded') {

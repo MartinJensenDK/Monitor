@@ -12,8 +12,7 @@ final class Monitors
 {
     public const TYPES = ['http', 'endpoint', 'ping', 'port'];
 
-    /** Types a user can create today. The rest ship in stage two. */
-    public const AVAILABLE_TYPES = ['http'];
+    public const AVAILABLE_TYPES = ['http', 'endpoint', 'ping', 'port'];
 
     public const INTERVALS = [30, 60, 120, 300, 600, 1800, 3600];
 

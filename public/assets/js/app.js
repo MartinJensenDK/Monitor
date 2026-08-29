@@ -69,17 +69,93 @@
 
     /* ── Forms ──────────────────────────────────────────────────────── */
 
-    // Show the fields that belong to the selected monitor type.
+    // Show the fields that belong to the selected monitor type, and word the
+    // shared target field for what that type actually wants.
+    var TARGETS = {
+        http: {
+            label: 'URL',
+            placeholder: 'https://example.com',
+            hint: 'The full address to request, including https://.'
+        },
+        endpoint: {
+            label: 'URL',
+            placeholder: 'https://api.example.com/v1/health',
+            hint: 'The endpoint to call. Its JSON is checked against the assertions below.'
+        },
+        ping: {
+            label: 'Host',
+            placeholder: 'example.com',
+            hint: 'A host name or IP address, without http:// in front of it.'
+        },
+        port: {
+            label: 'Host',
+            placeholder: 'db.example.com',
+            hint: 'The host to connect to. The port goes in the field next to it.'
+        }
+    };
+
     var typeSelect = document.querySelector('[data-type-select]');
     if (typeSelect) {
         var syncType = function () {
+            var type = typeSelect.value;
+
             document.querySelectorAll('[data-type-fields]').forEach(function (block) {
-                block.hidden = block.getAttribute('data-type-fields') !== typeSelect.value;
+                var types = block.getAttribute('data-type-fields').split(/\s+/);
+                block.hidden = types.indexOf(type) === -1;
             });
+
+            var copy = TARGETS[type] || TARGETS.http;
+            var label = document.querySelector('[data-target-label]');
+            var hint = document.querySelector('[data-target-hint]');
+            var input = document.querySelector('[data-target-input]');
+
+            if (label) label.textContent = copy.label;
+            if (hint) hint.textContent = copy.hint;
+            if (input) input.placeholder = copy.placeholder;
         };
         typeSelect.addEventListener('change', syncType);
         syncType();
     }
+
+    // Assertion rows on the endpoint form.
+    var assertionList = document.querySelector('[data-assertions]');
+    if (assertionList) {
+        document.querySelectorAll('[data-add-assertion]').forEach(function (button) {
+            button.addEventListener('click', function () {
+                var template = assertionList.querySelector('[data-assertion-row]');
+                if (!template) return;
+
+                var row = template.cloneNode(true);
+                row.querySelectorAll('input').forEach(function (input) { input.value = ''; });
+                row.querySelectorAll('select').forEach(function (select) { select.selectedIndex = 0; });
+                assertionList.appendChild(row);
+                var first = row.querySelector('input');
+                if (first) first.focus();
+            });
+        });
+
+        assertionList.addEventListener('click', function (event) {
+            if (!event.target.closest('[data-remove-assertion]')) return;
+
+            var rows = assertionList.querySelectorAll('[data-assertion-row]');
+            var row = event.target.closest('[data-assertion-row]');
+            if (rows.length > 1) {
+                row.remove();
+            } else {
+                row.querySelectorAll('input').forEach(function (input) { input.value = ''; });
+            }
+        });
+    }
+
+    // A notification channel's rules only matter when the channel is on.
+    document.querySelectorAll('[data-channel-toggle]').forEach(function (toggle) {
+        var body = document.querySelector(toggle.getAttribute('data-channel-toggle'));
+        if (!body) return;
+
+        var sync = function () { body.hidden = !toggle.checked; };
+        toggle.addEventListener('change', sync);
+        sync();
+    });
 
     // Reveal optional blocks (advanced settings, authentication).
     document.addEventListener('click', function (event) {

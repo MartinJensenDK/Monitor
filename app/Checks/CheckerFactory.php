@@ -11,6 +11,9 @@ final class CheckerFactory
     /** @var array<string,class-string<CheckerInterface>> */
     private const CHECKERS = [
         'http' => HttpChecker::class,
+        'endpoint' => EndpointChecker::class,
+        'ping' => PingChecker::class,
+        'port' => PortChecker::class,
     ];
 
     public static function for(string $type): CheckerInterface

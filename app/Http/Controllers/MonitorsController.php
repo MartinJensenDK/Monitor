@@ -17,6 +17,10 @@ use App\Domain\Incidents;
 use App\Domain\Monitors;
 use App\Domain\Stats;
 use App\Scheduler\Runner;
+use App\Checks\EndpointChecker;
+use App\Checks\PingTransport;
+use App\Checks\PingChecker;
+use App\Notifications\Channels;
 use App\Support\Crypto;
 
 final class MonitorsController extends Controller
@@ -68,6 +72,8 @@ final class MonitorsController extends Controller
             'groups' => Monitors::groups($id),
             'canEdit' => Gate::canEdit($monitor),
             'canDelete' => Gate::canDelete($monitor),
+            'notifications' => Channels::activeFor($id),
+            'pingTransport' => PingTransport::detect(),
         ]);
     }
 
@@ -79,6 +85,9 @@ final class MonitorsController extends Controller
             'config' => [],
             'assignable' => Groups::assignable(),
             'assigned' => [],
+            'channels' => Channels::all(),
+            'rules' => [],
+            'pingTransport' => PingTransport::detect(),
         ]);
     }
 
@@ -98,6 +107,9 @@ final class MonitorsController extends Controller
             'config' => Monitors::config($monitor),
             'assignable' => Groups::assignable(),
             'assigned' => $assigned,
+            'channels' => Channels::all(),
+            'rules' => Channels::rulesFor((int) $monitor['id']),
+            'pingTransport' => PingTransport::detect(),
         ]);
     }
 
@@ -109,6 +121,13 @@ final class MonitorsController extends Controller
         }
 
         $id = Monitors::create($data['monitor'], $data['groups']);
+
+        if ($data['rules'] === []) {
+            Channels::attachDefault($id);
+        } else {
+            Channels::syncMonitorRules($id, $data['rules']);
+        }
+
         AuditLog::record('monitor.created', 'monitor', $id, 'Created monitor ' . $data['monitor']['name']);
         $this->success('Monitor created. The first check runs within a minute.');
 
@@ -134,6 +153,7 @@ final class MonitorsController extends Controller
         }
 
         Monitors::update((int) $monitor['id'], $data['monitor'], $data['groups']);
+        Channels::syncMonitorRules((int) $monitor['id'], $data['rules']);
         AuditLog::record('monitor.updated', 'monitor', (int) $monitor['id'], 'Updated monitor ' . $data['monitor']['name']);
         $this->success('Monitor saved.');
 
@@ -204,7 +224,7 @@ final class MonitorsController extends Controller
     private function validated(Request $request, int $monitorId = 0): array|Response
     {
         $type = (string) $request->input('type', 'http');
-        $target = (string) $request->input('target', '');
+        $target = trim((string) $request->input('target', ''));
 
         $groups = [];
         foreach ($request->raw('group_access') ?? [] as $groupId => $access) {
@@ -223,18 +243,47 @@ final class MonitorsController extends Controller
             ));
         }
 
+        $isWeb = in_array($type, ['http', 'endpoint'], true);
+
         $validator = Validator::make($request->all())
             ->required('name', 'Name')
             ->maxLength('name', 'Name', 120)
-            ->required('target', 'URL')
+            ->required('target', $isWeb ? 'URL' : 'Host')
             ->in('type', 'Type', Monitors::AVAILABLE_TYPES)
             ->between('interval_seconds', 'Interval', 30, 86400)
             ->between('timeout_seconds', 'Timeout', 1, 120)
             ->between('retries', 'Retries', 0, 5)
             ->custom('group_access', $groups !== [], 'Share the monitor with at least one group, otherwise nobody can see it.');
 
-        if ($type === 'http') {
+        if ($isWeb) {
             $validator->url('target', 'URL');
+        } else {
+            $validator->custom(
+                'target',
+                $target === '' || preg_match('/^[A-Za-z0-9._:\[\]-]+$/', $target) === 1,
+                'Enter a host name or IP address, without http:// in front of it.'
+            );
+        }
+
+        if ($type === 'port') {
+            $port = $request->int('port', 0);
+            $validator->custom('port', $port >= 1 && $port <= 65535, 'Enter the port to connect to, between 1 and 65535.');
+        }
+
+        if ($type === 'ping') {
+            $fallback = $request->int('fallback_port', PingChecker::DEFAULT_FALLBACK_PORT);
+            $validator->custom('fallback_port', $fallback >= 1 && $fallback <= 65535, 'The fallback port must be between 1 and 65535.');
+        }
+
+        $assertions = $this->parseAssertions($request);
+        if ($type === 'endpoint') {
+            foreach ($assertions as $index => $assertion) {
+                $validator->custom(
+                    'assertions',
+                    in_array($assertion['operator'], array_keys(EndpointChecker::OPERATORS), true),
+                    'Assertion ' . ($index + 1) . ' uses an operator that does not exist.'
+                );
+            }
         }
 
         $timeout = $request->int('timeout_seconds', 10);
@@ -252,8 +301,6 @@ final class MonitorsController extends Controller
             return $this->redirect($monitorId > 0 ? '/monitors/' . $monitorId . '/edit' : '/monitors/new');
         }
 
-        $authPassword = (string) $request->raw('auth_password');
-
         return [
             'monitor' => [
                 'name' => (string) $request->input('name', ''),
@@ -265,22 +312,122 @@ final class MonitorsController extends Controller
                 'retries' => $request->int('retries', 2),
                 'degraded_ms' => $request->int('degraded_ms', 0) > 0 ? $request->int('degraded_ms', 0) : null,
                 'tags' => (string) $request->input('tags', '') ?: null,
-                'config' => [
-                    'method' => strtoupper((string) $request->input('method', 'GET')),
-                    'expected_status' => (string) $request->input('expected_status', '200-299'),
-                    'keyword' => (string) $request->input('keyword', ''),
-                    'keyword_absent' => $request->boolean('keyword_absent'),
-                    'follow_redirects' => $request->boolean('follow_redirects'),
-                    'verify_ssl' => $request->boolean('verify_ssl'),
-                    'headers' => $this->parseHeaders((string) $request->input('headers', '')),
-                    'body' => (string) $request->input('body', ''),
-                    'auth_username' => (string) $request->input('auth_username', ''),
-                    'auth_password' => $authPassword === '' ? '' : Crypto::encrypt($authPassword),
-                    'user_agent' => (string) $request->input('user_agent', ''),
-                ],
+                'config' => $this->configFor($type, $request, $assertions),
             ],
             'groups' => $groups,
+            'rules' => $this->parseRules($request),
         ];
+    }
+
+    /**
+     * Type-specific settings. Everything a checker needs beyond the shared
+     * columns lives here, which is why a new monitor type needs no migration.
+     *
+     * @param array<int,array{path:string,operator:string,value:string}> $assertions
+     * @return array<string,mixed>
+     */
+    private function configFor(string $type, Request $request, array $assertions): array
+    {
+        if ($type === 'ping') {
+            return ['fallback_port' => $request->int('fallback_port', PingChecker::DEFAULT_FALLBACK_PORT)];
+        }
+
+        if ($type === 'port') {
+            return [
+                'port' => $request->int('port', 0),
+                'banner' => (string) $request->input('banner', ''),
+            ];
+        }
+
+        $authPassword = (string) $request->raw('auth_password');
+
+        $config = [
+            'method' => strtoupper((string) $request->input('method', 'GET')),
+            'expected_status' => (string) $request->input('expected_status', '200-299'),
+            'keyword' => (string) $request->input('keyword', ''),
+            'keyword_absent' => $request->boolean('keyword_absent'),
+            'follow_redirects' => $request->boolean('follow_redirects'),
+            'verify_ssl' => $request->boolean('verify_ssl'),
+            'headers' => $this->parseHeaders((string) $request->input('headers', '')),
+            'body' => (string) $request->input('body', ''),
+            'auth_username' => (string) $request->input('auth_username', ''),
+            'auth_password' => $authPassword === '' ? '' : Crypto::encrypt($authPassword),
+            'user_agent' => (string) $request->input('user_agent', ''),
+        ];
+
+        if ($type === 'endpoint') {
+            $config['assertions'] = $assertions;
+        }
+
+        return $config;
+    }
+
+    /**
+     * Assertion rows arrive as three parallel arrays from the form.
+     *
+     * @return array<int,array{path:string,operator:string,value:string}>
+     */
+    private function parseAssertions(Request $request): array
+    {
+        $paths = $request->arrayInput('assert_path');
+        $operators = $request->arrayInput('assert_operator');
+        $values = $request->arrayInput('assert_value');
+
+        $assertions = [];
+        foreach ($paths as $index => $path) {
+            $path = trim($path);
+            if ($path === '') {
+                continue;
+            }
+
+            $assertions[] = [
+                'path' => $path,
+                'operator' => $operators[$index] ?? 'equals',
+                'value' => trim($values[$index] ?? ''),
+            ];
+        }
+
+        return $assertions;
+    }
+
+    /**
+     * Notification rules, one row per channel.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    private function parseRules(Request $request): array
+    {
+        $raw = $request->raw('notify');
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $rules = [];
+        foreach ($raw as $channelId => $rule) {
+            if (!is_array($rule) || empty($rule['enabled'])) {
+                continue;
+            }
+
+            $rules[(int) $channelId] = [
+                'enabled' => 1,
+                'notify_down' => empty($rule['notify_down']) ? 0 : 1,
+                'notify_up' => empty($rule['notify_up']) ? 0 : 1,
+                'notify_degraded' => empty($rule['notify_degraded']) ? 0 : 1,
+                'notify_cert_expiry' => empty($rule['notify_cert_expiry']) ? 0 : 1,
+                'cert_expiry_days' => max(1, min(90, (int) ($rule['cert_expiry_days'] ?? 14))),
+                'failure_threshold' => max(1, min(20, (int) ($rule['failure_threshold'] ?? 1))),
+                'resend_after_minutes' => max(0, min(1440, (int) ($rule['resend_after_minutes'] ?? 0))),
+                'quiet_hours_start' => self::time((string) ($rule['quiet_hours_start'] ?? '')),
+                'quiet_hours_end' => self::time((string) ($rule['quiet_hours_end'] ?? '')),
+            ];
+        }
+
+        return $rules;
+    }
+
+    private static function time(string $value): ?string
+    {
+        return preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', trim($value)) === 1 ? trim($value) . ':00' : null;
     }
 
     /** @return array<string,string> */

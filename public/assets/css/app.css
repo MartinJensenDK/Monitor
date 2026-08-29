@@ -1389,3 +1389,48 @@ code {
     border-radius: 3px;
     background: var(--panel-3);
 }
+
+/* ── Endpoint assertions ────────────────────────────────────────────── */
+
+.assertions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.assertion {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(140px, auto) minmax(0, 1fr) 32px;
+    gap: 8px;
+    align-items: center;
+}
+
+@media (max-width: 720px) {
+    .assertion {
+        grid-template-columns: minmax(0, 1fr) 32px;
+        grid-template-areas:
+            "path remove"
+            "operator operator"
+            "value value";
+    }
+
+    .assertion > *:nth-child(1) { grid-area: path; }
+    .assertion > *:nth-child(2) { grid-area: operator; }
+    .assertion > *:nth-child(3) { grid-area: value; }
+    .assertion > *:nth-child(4) { grid-area: remove; }
+}
+
+/* ── Notification log rows ──────────────────────────────────────────── */
+
+.log-status {
+    font-family: var(--font-display);
+    font-variation-settings: "wdth" 108;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.log-status--sent { color: var(--up); }
+.log-status--failed { color: var(--down); }
+.log-status--skipped { color: var(--ink-muted); }

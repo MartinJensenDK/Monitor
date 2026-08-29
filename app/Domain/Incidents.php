@@ -46,6 +46,22 @@ final class Incidents
         );
     }
 
+    /** @return array<string,mixed>|null */
+    public static function find(int $id): ?array
+    {
+        return Db::selectOne('SELECT * FROM {{incidents}} WHERE `id` = ? LIMIT 1', [$id]);
+    }
+
+    /** The open incident for a monitor, if there is one. */
+    /** @return array<string,mixed>|null */
+    public static function openFor(int $monitorId): ?array
+    {
+        return Db::selectOne(
+            'SELECT * FROM {{incidents}} WHERE `monitor_id` = ? AND `status` = \'open\' ORDER BY `id` DESC LIMIT 1',
+            [$monitorId]
+        );
+    }
+
     public static function resolveOpen(int $monitorId, ?string $note = null): void
     {
         $open = Db::selectOne(

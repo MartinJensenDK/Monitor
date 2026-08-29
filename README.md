@@ -10,9 +10,27 @@ folder, open the site, answer four questions, add one cron line.
 
 ## What it does today
 
-- **Website monitoring** — status code ranges, keyword on the page, redirects,
-  request method, headers, body, basic auth, TLS certificate expiry, and a
-  response-time threshold that marks a monitor *degraded* rather than down.
+**Four kinds of check**
+
+| Type | Watches | Says it is down when |
+|---|---|---|
+| **Website** | A page over HTTP | The status code falls outside the expected range, a keyword is missing (or present), the TLS handshake fails, or it times out |
+| **Endpoint** | A JSON API | Any of your assertions about the response body does not hold — `queue.depth` under 100, `status` equal to `ok`, `items.0.state` present |
+| **Ping** | A host answering | No ICMP echo comes back. Where the server may not send ICMP, it times a TCP connect instead and says so rather than pretending |
+| **Port** | A service listening | Nothing accepts the connection, or the greeting it sends is not the one you expected |
+
+All four share the same settings: interval, timeout, retries before an incident
+opens, and a response-time threshold that marks a monitor *degraded* rather than
+down. Website and endpoint checks also record TLS certificate expiry.
+
+**Everything around them**
+
+- **Email notifications** — SMTP or local sendmail, configured in the interface
+  with a test button that reports what the mail server actually said. Per monitor
+  and per channel you choose the events (down, recovery, slow, certificate
+  expiring), how many consecutive failures to wait for, whether to repeat while an
+  incident is open, and hours to stay quiet. Every send — and every deliberate
+  skip — is logged, so "why didn't I get an email?" has an answer.
 - **Live dashboard** — the page updates every five seconds without reloading.
   Nothing changed since the last poll costs the server one query and returns 304.
 - **Charts** — response time with p95, outages painted behind the line, 30 days of
@@ -29,12 +47,11 @@ folder, open the site, answer four questions, add one cron line.
 
 | Stage | What arrives |
 |---|---|
-| 2 | Endpoint (JSON assertions), Ping and Port checks · email notifications with SMTP setup and a test button · per-monitor rules: failure threshold, re-notify interval, quiet hours, notify on recovery, degraded, or certificate expiry |
 | 3 | Microsoft Entra ID — SSO sign-in and syncing users and groups from Graph, so group membership is maintained in Entra rather than here |
 | later | Public status page, maintenance windows, webhooks, API tokens, 2FA |
 
-The database schema for stage 2 and 3 is already in place, so upgrading adds
-behaviour without touching your data.
+The database schema for stage 3 is already in place, so upgrading adds behaviour
+without touching your data.
 
 ---
 
@@ -44,6 +61,8 @@ behaviour without touching your data.
 - MySQL 8.0+ or MariaDB 10.6+
 - A web server that can point a site at the `public/` folder
 - Cron (or any scheduler that can run a command every minute)
+- Optional: real ICMP for ping checks. Without it, ping falls back to timing a
+  TCP connect — see [docs/INSTALL.md](docs/INSTALL.md#ping-and-icmp)
 
 ## Install
 
@@ -105,7 +124,12 @@ fresh one, and the raw rows can be pruned aggressively.
 
 Implement `App\Checks\CheckerInterface`, register the class in
 `App\Checks\CheckerFactory`, and add a `data-type-fields` block to
-`resources/views/pages/monitor-form.php`. Nothing else needs to change.
+`resources/views/pages/monitor-form.php`. Nothing else needs to change — the
+type-specific settings live in the monitor's `config` JSON column, so a new type
+needs no migration.
+
+Implement `App\Checks\BatchableChecker` as well if the check is an HTTP request:
+the scheduler then sends it with all the others in one `curl_multi` round.
 
 ### Adding a language
 

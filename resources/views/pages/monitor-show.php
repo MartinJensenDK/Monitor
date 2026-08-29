@@ -15,8 +15,12 @@
  * @var array<int,array{group_id:int,access:string,name:string,source:string}> $groups
  * @var bool $canEdit
  * @var bool $canDelete
+ * @var array<int,array<string,mixed>> $notifications
+ * @var string $pingTransport
  */
 
+use App\Checks\EndpointChecker;
+use App\Checks\PingTransport;
 use App\Domain\Monitors;
 use App\Domain\Stats;
 use App\Support\Icons;
@@ -41,9 +45,15 @@ $circumference = 2 * M_PI * 34;
             <span class="row__type"><?= icon(Icons::forMonitorType((string) $monitor['type'])) ?></span>
             <div style="min-width:0;">
                 <p class="eyebrow"><?= e(Monitors::typeLabel((string) $monitor['type'])) ?> · checked every <?= e(format_duration((int) $monitor['interval_seconds'])) ?></p>
-                <a class="row__target" href="<?= e((string) $monitor['target']) ?>" rel="noreferrer noopener" target="_blank">
-                    <?= e((string) $monitor['target']) ?> <?= icon('external', 'icon') ?>
-                </a>
+                <?php if (in_array((string) $monitor['type'], ['http', 'endpoint'], true)): ?>
+                    <a class="row__target" href="<?= e((string) $monitor['target']) ?>" rel="noreferrer noopener" target="_blank">
+                        <?= e((string) $monitor['target']) ?> <?= icon('external', 'icon') ?>
+                    </a>
+                <?php else: ?>
+                    <span class="row__target">
+                        <?= e((string) $monitor['target']) ?><?= (string) $monitor['type'] === 'port' ? ':' . (int) ($config['port'] ?? 0) : '' ?>
+                    </span>
+                <?php endif; ?>
             </div>
 
             <div class="btn-row" style="margin-left:auto;">
@@ -205,17 +215,52 @@ $circumference = 2 * M_PI * 34;
                     <dt><?= e(t('monitor.retries')) ?></dt>
                     <dd class="num"><?= (int) $monitor['retries'] ?></dd>
 
-                    <dt>Method</dt>
-                    <dd class="num"><?= e((string) ($config['method'] ?? 'GET')) ?></dd>
+                    <?php if (in_array((string) $monitor['type'], ['http', 'endpoint'], true)): ?>
+                        <dt>Method</dt>
+                        <dd class="num"><?= e((string) ($config['method'] ?? 'GET')) ?></dd>
 
-                    <dt>Expected status</dt>
-                    <dd class="num"><?= e((string) ($config['expected_status'] ?? '200-299')) ?></dd>
+                        <dt>Expected status</dt>
+                        <dd class="num"><?= e((string) ($config['expected_status'] ?? '200-299')) ?></dd>
 
-                    <?php if (!empty($config['keyword'])): ?>
-                        <dt>Keyword</dt>
+                        <?php if (!empty($config['keyword'])): ?>
+                            <dt>Keyword</dt>
+                            <dd>
+                                <?= e((string) $config['keyword']) ?>
+                                <span class="muted">(<?= !empty($config['keyword_absent']) ? 'must be absent' : 'must be present' ?>)</span>
+                            </dd>
+                        <?php endif; ?>
+                    <?php endif; ?>
+
+                    <?php if ((string) $monitor['type'] === 'endpoint' && !empty($config['assertions'])): ?>
+                        <dt>Assertions</dt>
                         <dd>
-                            <?= e((string) $config['keyword']) ?>
-                            <span class="muted">(<?= !empty($config['keyword_absent']) ? 'must be absent' : 'must be present' ?>)</span>
+                            <?php foreach ($config['assertions'] as $assertion): ?>
+                                <div class="num" style="font-size:12px;">
+                                    <?= e((string) $assertion['path']) ?>
+                                    <span class="muted"><?= e(EndpointChecker::OPERATORS[$assertion['operator']] ?? $assertion['operator']) ?></span>
+                                    <?= e((string) ($assertion['value'] ?? '')) ?>
+                                </div>
+                            <?php endforeach; ?>
+                        </dd>
+                    <?php endif; ?>
+
+                    <?php if ((string) $monitor['type'] === 'port'): ?>
+                        <dt>Port</dt>
+                        <dd class="num"><?= (int) ($config['port'] ?? 0) ?></dd>
+
+                        <?php if (!empty($config['banner'])): ?>
+                            <dt>Expected greeting</dt>
+                            <dd class="num"><?= e((string) $config['banner']) ?></dd>
+                        <?php endif; ?>
+                    <?php endif; ?>
+
+                    <?php if ((string) $monitor['type'] === 'ping'): ?>
+                        <dt>Measured by</dt>
+                        <dd>
+                            <?= PingTransport::isIcmp($pingTransport) ? 'ICMP echo' : 'TCP connect' ?>
+                            <?php if (!PingTransport::isIcmp($pingTransport)): ?>
+                                <span class="muted">to port <?= (int) ($config['fallback_port'] ?? 443) ?> — this server cannot send ICMP</span>
+                            <?php endif; ?>
                         </dd>
                     <?php endif; ?>
 
@@ -241,6 +286,68 @@ $circumference = 2 * M_PI * 34;
             </div>
         </section>
     </div>
+
+    <section class="panel" style="margin-top:18px;">
+        <div class="panel__head">
+            <h2>Who gets told</h2>
+            <?php if ($canEdit): ?>
+                <a class="btn btn--sm" style="margin-left:auto;" href="/monitors/<?= $id ?>/edit"><?= icon('edit') ?>Change</a>
+            <?php endif; ?>
+        </div>
+        <?php if ($notifications === []): ?>
+            <div class="panel__body">
+                <p class="muted mt-0">
+                    Nobody. This monitor is watched, but an outage will not send email.
+                    <?= $canEdit ? '<a href="/monitors/' . $id . '/edit">Pick a channel</a>.' : '' ?>
+                </p>
+            </div>
+        <?php else: ?>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Channel</th>
+                            <th>Told about</th>
+                            <th>After</th>
+                            <th>Repeat</th>
+                            <th>Quiet hours</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($notifications as $rule): ?>
+                            <?php
+                            $events = [];
+                            if ((int) $rule['notify_down'] === 1) { $events[] = 'down'; }
+                            if ((int) $rule['notify_up'] === 1) { $events[] = 'recovery'; }
+                            if ((int) $rule['notify_degraded'] === 1) { $events[] = 'slow'; }
+                            if ((int) $rule['notify_cert_expiry'] === 1) { $events[] = 'certificate'; }
+                            ?>
+                            <tr>
+                                <td><strong><?= e((string) $rule['channel_name']) ?></strong></td>
+                                <td>
+                                    <?php foreach ($events as $event): ?>
+                                        <span class="pill pill--plain"><?= e($event) ?></span>
+                                    <?php endforeach; ?>
+                                    <?= $events === [] ? '<span class="muted">nothing</span>' : '' ?>
+                                </td>
+                                <td class="num"><?= (int) $rule['failure_threshold'] ?> failure(s)</td>
+                                <td class="num">
+                                    <?= (int) $rule['resend_after_minutes'] > 0
+                                        ? 'every ' . (int) $rule['resend_after_minutes'] . 'm'
+                                        : '<span class="muted">once</span>' ?>
+                                </td>
+                                <td class="num">
+                                    <?= $rule['quiet_hours_start'] && $rule['quiet_hours_end']
+                                        ? e(substr((string) $rule['quiet_hours_start'], 0, 5)) . '–' . e(substr((string) $rule['quiet_hours_end'], 0, 5))
+                                        : '<span class="muted">none</span>' ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+    </section>
 
     <div class="grid grid--halves" style="margin-top:18px;">
         <section class="panel">

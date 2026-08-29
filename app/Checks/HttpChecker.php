@@ -15,7 +15,7 @@ use CurlHandle;
  * prepare()/finish() exist so the scheduler can run many of these at once
  * through curl_multi; run() is the same thing for a single check.
  */
-final class HttpChecker implements CheckerInterface
+class HttpChecker implements BatchableChecker
 {
     public static function type(): string
     {
@@ -25,13 +25,13 @@ final class HttpChecker implements CheckerInterface
     /** @param array<string,mixed> $monitor */
     public function run(array $monitor): CheckResult
     {
-        $handle = self::prepare($monitor);
+        $handle = $this->prepare($monitor);
         if ($handle instanceof CheckResult) {
             return $handle;
         }
 
-        curl_exec($handle);
-        $result = self::finish($monitor, $handle);
+        $body = (string) curl_exec($handle);
+        $result = $this->finish($monitor, $handle, $body);
         curl_close($handle);
 
         return $result;
@@ -42,7 +42,7 @@ final class HttpChecker implements CheckerInterface
      * @return CurlHandle|CheckResult a handle to add to curl_multi, or an
      *                                immediate failure (blocked target)
      */
-    public static function prepare(array $monitor): CurlHandle|CheckResult
+    public function prepare(array $monitor): CurlHandle|CheckResult
     {
         $config = Monitors::config($monitor);
         $url = (string) $monitor['target'];
@@ -112,7 +112,7 @@ final class HttpChecker implements CheckerInterface
      *
      * @param array<string,mixed> $monitor
      */
-    public static function finish(array $monitor, CurlHandle $handle, ?string $body = null, ?int $errno = null): CheckResult
+    public function finish(array $monitor, CurlHandle $handle, ?string $body = null, ?int $errno = null): CheckResult
     {
         $config = Monitors::config($monitor);
         $errno ??= curl_errno($handle);
@@ -169,23 +169,16 @@ final class HttpChecker implements CheckerInterface
             );
         }
 
-        $keyword = trim((string) ($config['keyword'] ?? ''));
-        if ($keyword !== '') {
-            $haystack = $body ?? (string) curl_multi_getcontent($handle);
-            $found = stripos($haystack, $keyword) !== false;
-            $shouldBeAbsent = (bool) ($config['keyword_absent'] ?? false);
-
-            if ($found === $shouldBeAbsent) {
-                return CheckResult::down(
-                    'keyword',
-                    $shouldBeAbsent
-                        ? sprintf('The page contains "%s", which should be absent.', $keyword)
-                        : sprintf('The page did not contain "%s".', $keyword),
-                    $totalMs,
-                    $httpCode,
-                    $meta
-                );
-            }
+        $failure = $this->inspectBody(
+            $monitor,
+            $config,
+            $body ?? (string) curl_multi_getcontent($handle),
+            $totalMs,
+            $httpCode,
+            $meta
+        );
+        if ($failure !== null) {
+            return $failure;
         }
 
         $degradedMs = (int) ($monitor['degraded_ms'] ?? 0);
@@ -200,6 +193,45 @@ final class HttpChecker implements CheckerInterface
         }
 
         return CheckResult::up($totalMs, $connectMs, $httpCode, $meta);
+    }
+
+    /**
+     * Content checks run after the status code is accepted. A website looks for
+     * a keyword; an endpoint also evaluates its JSON assertions.
+     *
+     * @param array<string,mixed> $monitor
+     * @param array<string,mixed> $config
+     * @param array<string,mixed> $meta
+     */
+    protected function inspectBody(
+        array $monitor,
+        array $config,
+        string $body,
+        int $totalMs,
+        int $httpCode,
+        array $meta
+    ): ?CheckResult {
+        $keyword = trim((string) ($config['keyword'] ?? ''));
+        if ($keyword === '') {
+            return null;
+        }
+
+        $found = stripos($body, $keyword) !== false;
+        $shouldBeAbsent = (bool) ($config['keyword_absent'] ?? false);
+
+        if ($found !== $shouldBeAbsent) {
+            return null;
+        }
+
+        return CheckResult::down(
+            'keyword',
+            $shouldBeAbsent
+                ? sprintf('The response contains "%s", which should be absent.', $keyword)
+                : sprintf('The response did not contain "%s".', $keyword),
+            $totalMs,
+            $httpCode,
+            $meta
+        );
     }
 
     /**
