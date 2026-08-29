@@ -26,8 +26,14 @@ final class SettingsController extends Controller
 {
     public function index(Request $request): Response
     {
+        $tab = (string) $request->query('tab', 'general');
+        if (!in_array($tab, ['general', 'notifications', 'entra'], true)) {
+            $tab = 'general';
+        }
+
         return $this->view($request, 'pages/settings', [
             'title' => 'Settings',
+            'tab' => $tab,
             'settings' => Settings::all(),
             'timezones' => timezone_identifiers_list(),
             'locales' => Lang::available(App::basePath('resources/lang')),
@@ -73,6 +79,18 @@ final class SettingsController extends Controller
             'retention_checks_days' => (string) max(1, min(365, $request->int('retention_checks_days', 14))),
             'retention_minutes_days' => (string) max(1, min(730, $request->int('retention_minutes_days', 30))),
             'retention_hours_days' => (string) max(7, min(3650, $request->int('retention_hours_days', 400))),
+        ]);
+
+        AuditLog::record('settings.updated', 'system', null, 'Updated site settings');
+        $this->success('Settings saved.');
+
+        return $this->redirect('/settings');
+    }
+
+    /** Email delivery lives on its own tab, and saves on its own. */
+    public function updateEmail(Request $request): Response
+    {
+        Settings::setMany([
             'notifications_enabled' => $request->boolean('notifications_enabled') ? '1' : '0',
             'mail_driver' => $request->input('mail_driver') === 'sendmail' ? 'sendmail' : 'smtp',
             'mail_from_address' => strtolower((string) $request->input('mail_from_address', '')),
@@ -91,10 +109,10 @@ final class SettingsController extends Controller
             Settings::set('smtp_password', $smtpPassword);
         }
 
-        AuditLog::record('settings.updated', 'system', null, 'Updated site settings');
-        $this->success('Settings saved.');
+        AuditLog::record('settings.email_updated', 'system', null, 'Updated the email settings');
+        $this->success('Email settings saved.');
 
-        return $this->redirect('/settings');
+        return $this->redirect('/settings?tab=notifications');
     }
 
     /** Notification channels: who hears about a monitor at all. */
@@ -193,7 +211,7 @@ final class SettingsController extends Controller
             ? $this->success('Test email sent to ' . $recipient . '.')
             : $this->error($result['error']);
 
-        return $this->redirect('/settings');
+        return $this->redirect('/settings?tab=notifications');
     }
 
     /** @return array{0:string,1:array<int,string>,2:?string} */
@@ -255,7 +273,7 @@ final class SettingsController extends Controller
         AuditLog::record('settings.entra_updated', 'system', null, 'Updated the Microsoft Entra ID connection');
         $this->success('Entra settings saved.');
 
-        return $this->redirect('/settings#entra');
+        return $this->redirect('/settings?tab=entra');
     }
 
     public function testEntra(Request $request): Response
@@ -268,7 +286,7 @@ final class SettingsController extends Controller
 
         $result['ok'] ? $this->success($result['message']) : $this->error($result['message']);
 
-        return $this->redirect('/settings#entra');
+        return $this->redirect('/settings?tab=entra');
     }
 
     /** The group picker asks for this, so nobody has to paste object ids. */
@@ -293,7 +311,7 @@ final class SettingsController extends Controller
 
         $summary['ok'] ? $this->success($summary['message']) : $this->error($summary['message']);
 
-        return $this->redirect('/settings#entra');
+        return $this->redirect('/settings?tab=entra');
     }
 
     public function activity(Request $request): Response

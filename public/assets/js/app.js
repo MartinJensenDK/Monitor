@@ -170,6 +170,38 @@
         toggle.setAttribute('aria-expanded', String(!target.hidden));
     });
 
+    // Tabs. The links are ordinary URLs and work without JavaScript; this
+    // just spares a page load and keeps the address bar honest.
+    var tabLinks = document.querySelectorAll('[data-tab-link]');
+    if (tabLinks.length) {
+        tabLinks.forEach(function (link) {
+            link.addEventListener('click', function (event) {
+                var name = link.getAttribute('data-tab-link');
+                var panel = document.querySelector('[data-tab-panel="' + name + '"]');
+                if (!panel) return;
+
+                event.preventDefault();
+
+                document.querySelectorAll('[data-tab-panel]').forEach(function (section) {
+                    section.hidden = section.getAttribute('data-tab-panel') !== name;
+                });
+                tabLinks.forEach(function (other) {
+                    other.setAttribute('aria-current', other === link ? 'page' : 'false');
+                });
+
+                // Not every embedding allows a history rewrite; the tab has
+                // already switched either way.
+                try {
+                    history.replaceState(null, '', link.getAttribute('href'));
+                } catch (error) {
+                    /* ignore */
+                }
+
+                window.scrollTo({ top: 0 });
+            });
+        });
+    }
+
     // Entra group picker: ask the directory for its groups so nobody has to
     // paste object ids, and keep whatever is already selected checked.
     var entraLoad = document.querySelector('[data-entra-load]');

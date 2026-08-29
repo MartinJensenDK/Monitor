@@ -69,6 +69,7 @@ return static function (Router $router): void {
     // Settings and profile
     $router->get('/settings', [SettingsController::class, 'index'])->can('settings.view');
     $router->post('/settings', [SettingsController::class, 'update'])->can('settings.manage');
+    $router->post('/settings/email', [SettingsController::class, 'updateEmail'])->can('settings.manage');
     $router->post('/settings/test-email', [SettingsController::class, 'testEmail'])->can('settings.manage');
     $router->get('/settings/channels', [SettingsController::class, 'channels'])->can('settings.view');
     $router->post('/settings/channels', [SettingsController::class, 'storeChannel'])->can('settings.manage');
