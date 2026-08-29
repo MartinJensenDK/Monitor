@@ -8,6 +8,11 @@
  * @var array<string,int> $counts
  * @var bool $mailConfigured
  * @var string $pingTransport
+ * @var bool $entraConfigured
+ * @var array<int,string> $entraGroupIds
+ * @var array<int,array<string,mixed>> $entraGroups
+ * @var string $entraRedirectUri
+ * @var array<int,string> $entraPermissions
  */
 
 $lastRunAge = $schedulerLastRun === null ? null : max(0, time() - (strtotime($schedulerLastRun . ' UTC') ?: time()));
@@ -285,6 +290,174 @@ $schedulerHealthy = $lastRunAge !== null && $lastRunAge < 300;
             </p>
         </div>
     </section>
+
+    <form method="post" action="/settings/entra" id="entra" class="stack" data-entra>
+        <?= csrf_field() ?>
+
+        <section class="panel">
+            <div class="panel__head">
+                <h2>Microsoft Entra ID</h2>
+                <span class="pill pill--<?= $settings['entra_enabled'] === '1' && $entraConfigured ? 'up' : 'paused' ?>"
+                      style="margin-left:auto;">
+                    <?= $settings['entra_enabled'] === '1' && $entraConfigured ? 'sign-in on' : 'off' ?>
+                </span>
+            </div>
+            <div class="panel__body">
+                <p class="field__hint mt-0" style="margin-bottom:16px;">
+                    Let people sign in with their work account, and keep group membership in the directory instead of
+                    here. Register an application in Azure, give it the two Graph permissions below with admin consent,
+                    and add the redirect URI exactly as it is written.
+                </p>
+
+                <div class="stack stack--tight" style="margin-bottom:18px;">
+                    <p class="eyebrow">Redirect URI to register</p>
+                    <code class="code"><?= e($entraRedirectUri) ?></code>
+                    <p class="eyebrow" style="margin-top:8px;">Application permissions to grant</p>
+                    <code class="code"><?= e(implode('   ', $entraPermissions)) ?></code>
+                </div>
+
+                <div class="form-grid">
+                    <div class="field">
+                        <label class="field__label" for="entra_tenant_id">Directory (tenant) ID</label>
+                        <input class="input input--mono" id="entra_tenant_id" name="entra_tenant_id"
+                               value="<?= e($settings['entra_tenant_id']) ?>"
+                               placeholder="00000000-0000-0000-0000-000000000000">
+                    </div>
+
+                    <div class="field">
+                        <label class="field__label" for="entra_client_id">Application (client) ID</label>
+                        <input class="input input--mono" id="entra_client_id" name="entra_client_id"
+                               value="<?= e($settings['entra_client_id']) ?>"
+                               placeholder="00000000-0000-0000-0000-000000000000">
+                    </div>
+
+                    <div class="field">
+                        <label class="field__label" for="entra_client_secret">Client secret</label>
+                        <input class="input" id="entra_client_secret" name="entra_client_secret" type="password"
+                               autocomplete="new-password"
+                               placeholder="<?= $settings['entra_client_secret'] !== '' ? 'Unchanged' : 'Secret value, not the secret ID' ?>">
+                        <span class="field__hint">Encrypted with APP_KEY before it is stored. Azure hides it after you leave the page — copy it then.</span>
+                    </div>
+
+                    <div class="field">
+                        <label class="field__label" for="entra_default_role">Role for new accounts</label>
+                        <select class="select" id="entra_default_role" name="entra_default_role">
+                            <?php foreach (['viewer', 'editor', 'admin'] as $role): ?>
+                                <option value="<?= e($role) ?>" <?= $settings['entra_default_role'] === $role ? 'selected' : '' ?>>
+                                    <?= e(t('role.' . $role)) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <span class="field__hint">Unless a group grants a role — set that on the group itself.</span>
+                    </div>
+                </div>
+
+                <div class="form-grid" style="margin-top:16px;">
+                    <label class="check">
+                        <input type="checkbox" name="entra_enabled" value="1" <?= $settings['entra_enabled'] === '1' ? 'checked' : '' ?>>
+                        <span class="check__text">
+                            Show "Sign in with Microsoft"
+                            <small>Adds the button to the sign-in page.</small>
+                        </span>
+                    </label>
+
+                    <label class="check">
+                        <input type="checkbox" name="entra_allow_local_login" value="1"
+                               <?= $settings['entra_allow_local_login'] === '1' ? 'checked' : '' ?>>
+                        <span class="check__text">
+                            Keep password sign-in
+                            <small>Leave this on until Microsoft sign-in has worked at least once, or you can lock yourself out.</small>
+                        </span>
+                    </label>
+
+                    <label class="check">
+                        <input type="checkbox" name="entra_auto_provision" value="1"
+                               <?= $settings['entra_auto_provision'] === '1' ? 'checked' : '' ?>>
+                        <span class="check__text">
+                            Create accounts on first sign-in
+                            <small>Off means only people already here, or synced from a group, can get in.</small>
+                        </span>
+                    </label>
+
+                    <label class="check">
+                        <input type="checkbox" name="entra_sync_enabled" value="1"
+                               <?= $settings['entra_sync_enabled'] === '1' ? 'checked' : '' ?>>
+                        <span class="check__text">
+                            Sync groups every hour
+                            <small>Members are read from the directory and mirrored here, read-only.</small>
+                        </span>
+                    </label>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel__head">
+                <h2>Groups to mirror</h2>
+                <button class="btn btn--sm" type="button" data-entra-load style="margin-left:auto;">
+                    <?= icon('refresh') ?>Load groups from Entra
+                </button>
+            </div>
+            <div class="panel__body">
+                <p class="field__hint mt-0" style="margin-bottom:14px;">
+                    Only the groups you pick are mirrored. Take one out and it stays here as an ordinary local group —
+                    nothing it gave access to disappears.
+                </p>
+
+                <div class="form-grid" data-entra-groups>
+                    <?php
+                    $known = [];
+                    foreach ($entraGroups as $group) {
+                        $known[(string) $group['external_id']] = $group;
+                    }
+                    foreach ($entraGroupIds as $objectId):
+                        $group = $known[$objectId] ?? null;
+                    ?>
+                        <label class="check">
+                            <input type="checkbox" name="entra_groups[]" value="<?= e($objectId) ?>" checked>
+                            <span class="check__text">
+                                <?= e($group === null ? $objectId : (string) $group['name']) ?>
+                                <small>
+                                    <?= $group === null
+                                        ? 'Not mirrored yet — run a sync'
+                                        : (int) $group['member_count'] . ' member(s)'
+                                          . ($group['mapped_role'] ? ' · grants ' . e((string) $group['mapped_role']) : '') ?>
+                                </small>
+                            </span>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
+
+                <p class="result" data-entra-result role="status" style="margin-top:12px;"></p>
+
+                <?php if ($entraGroupIds === []): ?>
+                    <p class="muted" data-entra-empty>No groups selected yet. Load them from the directory to choose.</p>
+                <?php endif; ?>
+            </div>
+        </section>
+
+        <div class="form-actions">
+            <button class="btn" type="submit" formaction="/settings/entra/test" formnovalidate>
+                <?= icon('link') ?>Test the connection
+            </button>
+            <?php if ($settings['entra_sync_enabled'] === '1' || $entraGroupIds !== []): ?>
+                <button class="btn" type="submit" formaction="/settings/entra/sync" formnovalidate>
+                    <?= icon('refresh') ?>Sync now
+                </button>
+            <?php endif; ?>
+            <div class="btn-row" style="margin-left:auto;">
+                <button class="btn btn--primary" type="submit"><?= icon('check') ?><?= e(t('action.save')) ?></button>
+            </div>
+        </div>
+
+        <?php if ($settings['entra_last_sync_at'] !== ''): ?>
+            <p class="field__hint">
+                Last sync <?= e(local_time($settings['entra_last_sync_at'], 'M j, H:i')) ?> —
+                <?= $settings['entra_last_sync_status'] === 'ok' ? '' : '<strong>failed.</strong> ' ?>
+                <?= e($settings['entra_last_sync_summary']) ?>
+            </p>
+        <?php endif; ?>
+    </form>
 
     <section class="panel">
         <div class="panel__head"><h2>Ping</h2></div>

@@ -9,6 +9,7 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Core\Session;
 use App\Domain\AuditLog;
+use App\Entra\Entra;
 use App\Http\Middleware\RateLimit;
 
 final class AuthController extends Controller
@@ -23,6 +24,12 @@ final class AuthController extends Controller
 
     public function login(Request $request): Response
     {
+        if (!Entra::localLoginAllowed()) {
+            $this->error('This site signs in through Microsoft only.');
+
+            return $this->redirect('/login');
+        }
+
         $email = strtolower((string) $request->input('email', ''));
         $password = (string) $request->raw('password');
         $ip = $request->ip();

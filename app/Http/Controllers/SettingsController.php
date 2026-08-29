@@ -5,6 +5,11 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Checks\PingTransport;
+use App\Domain\Groups;
+use App\Entra\Entra;
+use App\Entra\Graph;
+use App\Entra\Sync;
+use Throwable;
 use App\Core\Db;
 use App\Core\HttpException;
 use App\Core\Lang;
@@ -29,6 +34,11 @@ final class SettingsController extends Controller
             'cron' => (new Installer(App::basePath()))->cronLine(),
             'schedulerLastRun' => Db::value('SELECT MAX(`checked_at`) FROM {{checks}}'),
             'mailConfigured' => Mailer::isConfigured(),
+            'entraConfigured' => Entra::isConfigured(),
+            'entraGroupIds' => Entra::syncGroupIds(),
+            'entraGroups' => Groups::entraGroups(),
+            'entraRedirectUri' => Entra::redirectUri(),
+            'entraPermissions' => Entra::GRAPH_PERMISSIONS,
             'pingTransport' => PingTransport::detect(),
             'counts' => [
                 'checks' => (int) Db::value('SELECT COUNT(*) FROM {{checks}}'),
@@ -95,6 +105,11 @@ final class SettingsController extends Controller
             'channels' => Channels::all(),
             'log' => Channels::recentLog(30),
             'mailConfigured' => Mailer::isConfigured(),
+            'entraConfigured' => Entra::isConfigured(),
+            'entraGroupIds' => Entra::syncGroupIds(),
+            'entraGroups' => Groups::entraGroups(),
+            'entraRedirectUri' => Entra::redirectUri(),
+            'entraPermissions' => Entra::GRAPH_PERMISSIONS,
             'notificationsEnabled' => Settings::bool('notifications_enabled'),
         ]);
     }
@@ -207,6 +222,78 @@ final class SettingsController extends Controller
         }
 
         return [$name, array_values(array_unique($recipients)), null];
+    }
+
+    /** Microsoft Entra ID: directory connection, sync scope and role mapping. */
+    public function updateEntra(Request $request): Response
+    {
+        Settings::setMany([
+            'entra_enabled' => $request->boolean('entra_enabled') ? '1' : '0',
+            'entra_tenant_id' => trim((string) $request->input('entra_tenant_id', '')),
+            'entra_client_id' => trim((string) $request->input('entra_client_id', '')),
+            'entra_allow_local_login' => $request->boolean('entra_allow_local_login') ? '1' : '0',
+            'entra_auto_provision' => $request->boolean('entra_auto_provision') ? '1' : '0',
+            'entra_sync_enabled' => $request->boolean('entra_sync_enabled') ? '1' : '0',
+            'entra_default_role' => in_array($request->input('entra_default_role'), ['admin', 'editor', 'viewer'], true)
+                ? (string) $request->input('entra_default_role')
+                : 'viewer',
+        ]);
+
+        $secret = (string) $request->raw('entra_client_secret');
+        if ($secret !== '') {
+            Settings::set('entra_client_secret', $secret);
+        }
+
+        Entra::setSyncGroupIds(array_map('strval', $request->arrayInput('entra_groups')));
+
+        // Locking yourself out is easy to do by accident and hard to undo.
+        if (!Settings::bool('entra_allow_local_login') && !Settings::bool('entra_enabled')) {
+            Settings::set('entra_allow_local_login', '1');
+            $this->warn('Password sign-in stays on until Microsoft sign-in is enabled and working.');
+        }
+
+        AuditLog::record('settings.entra_updated', 'system', null, 'Updated the Microsoft Entra ID connection');
+        $this->success('Entra settings saved.');
+
+        return $this->redirect('/settings#entra');
+    }
+
+    public function testEntra(Request $request): Response
+    {
+        $result = Graph::test();
+
+        if ($request->wantsJson()) {
+            return Response::json($result, $result['ok'] ? 200 : 422);
+        }
+
+        $result['ok'] ? $this->success($result['message']) : $this->error($result['message']);
+
+        return $this->redirect('/settings#entra');
+    }
+
+    /** The group picker asks for this, so nobody has to paste object ids. */
+    public function entraGroups(Request $request): Response
+    {
+        try {
+            $groups = Graph::groups(trim((string) $request->query('q', '')));
+        } catch (Throwable $e) {
+            return Response::json(['ok' => false, 'message' => $e->getMessage(), 'groups' => []], 422);
+        }
+
+        return Response::json(['ok' => true, 'message' => '', 'groups' => $groups]);
+    }
+
+    public function syncEntra(Request $request): Response
+    {
+        $summary = Sync::run();
+
+        if ($request->wantsJson()) {
+            return Response::json($summary, $summary['ok'] ? 200 : 422);
+        }
+
+        $summary['ok'] ? $this->success($summary['message']) : $this->error($summary['message']);
+
+        return $this->redirect('/settings#entra');
     }
 
     public function activity(Request $request): Response

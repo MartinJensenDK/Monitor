@@ -25,6 +25,7 @@ require __DIR__ . '/../app/Support/helpers.php';
 
 use App\Core\App;
 use App\Core\Db;
+use App\Entra\Sync;
 use App\Notifications\CertificateWatcher;
 use App\Scheduler\Retention;
 use App\Scheduler\Rollup;
@@ -69,6 +70,13 @@ try {
 
     if (!$dryRun) {
         Rollup::aggregate();
+
+        if (Sync::due()) {
+            $sync = Sync::run();
+            if ($verbose) {
+                echo '  entra: ' . $sync['message'] . "\n";
+            }
+        }
 
         if (Retention::due()) {
             $removed = Retention::prune();

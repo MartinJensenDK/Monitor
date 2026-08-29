@@ -39,6 +39,46 @@ final class Groups
         );
     }
 
+    /**
+     * Groups mirrored from Entra ID, with their object ids, for the settings page.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public static function entraGroups(): array
+    {
+        return Db::select(
+            'SELECT g.*,
+                    (SELECT COUNT(*) FROM {{group_user}} gu WHERE gu.`group_id` = g.`id`) AS member_count,
+                    (SELECT `role` FROM {{group_role_map}} m WHERE m.`group_id` = g.`id`) AS mapped_role
+             FROM {{user_groups}} g
+             WHERE g.`source` = \'entra\'
+             ORDER BY g.`name`'
+        );
+    }
+
+    /** A group can grant a role, so an Entra group becomes the source of truth for it. */
+    public static function setRoleMapping(int $groupId, ?string $role): void
+    {
+        if ($role === null || !in_array($role, ['admin', 'editor', 'viewer'], true)) {
+            Db::execute('DELETE FROM {{group_role_map}} WHERE `group_id` = ?', [$groupId]);
+
+            return;
+        }
+
+        Db::execute(
+            'INSERT INTO {{group_role_map}} (`group_id`, `role`) VALUES (?, ?)
+             ON DUPLICATE KEY UPDATE `role` = VALUES(`role`)',
+            [$groupId, $role]
+        );
+    }
+
+    public static function roleMapping(int $groupId): ?string
+    {
+        $role = Db::value('SELECT `role` FROM {{group_role_map}} WHERE `group_id` = ? LIMIT 1', [$groupId]);
+
+        return $role === null ? null : (string) $role;
+    }
+
     /** @return array<string,mixed>|null */
     public static function find(int $id): ?array
     {

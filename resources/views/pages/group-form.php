@@ -4,6 +4,7 @@
  * @var array<int,int> $members
  * @var array<int,array<string,mixed>> $users
  * @var array<int,array<string,mixed>> $monitors
+ * @var ?string $grantsRole
  */
 
 use App\Core\Rbac;
@@ -43,6 +44,32 @@ $value = static function (string $key) use ($group): string {
                     <input class="input" id="description" name="description" maxlength="255"
                            value="<?= e($value('description')) ?>" placeholder="What this group looks after"
                            <?= $managed ? 'readonly' : '' ?>>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel__head"><h2>What membership grants</h2></div>
+        <div class="panel__body">
+            <p class="field__hint mt-0" style="margin-bottom:14px;">
+                Normally a role is set per person. Pick a role here and everyone the directory puts in this group gets
+                it instead — which is how you keep "who is an administrator" in Entra ID rather than in two places.
+                The most permissive mapped group wins.
+            </p>
+
+            <div class="form-grid">
+                <div class="field">
+                    <label class="field__label" for="grants_role">Role</label>
+                    <select class="select" id="grants_role" name="grants_role">
+                        <option value="">No opinion — each person keeps their own role</option>
+                        <?php foreach (['viewer', 'editor', 'admin'] as $role): ?>
+                            <option value="<?= e($role) ?>" <?= $grantsRole === $role ? 'selected' : '' ?>>
+                                <?= e(Rbac::label($role)) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <span class="field__hint">Applied on the next sync, and to anyone signing in with Microsoft.</span>
                 </div>
             </div>
         </div>
@@ -112,9 +139,9 @@ $value = static function (string $key) use ($group): string {
             <?php if ($isEdit && !$managed): ?>
                 <button class="btn btn--danger" type="submit" form="delete-group"><?= icon('trash') ?><?= e(t('action.delete')) ?></button>
             <?php endif; ?>
-            <?php if (!$managed): ?>
-                <button class="btn btn--primary" type="submit"><?= icon('check') ?><?= $isEdit ? e(t('action.save')) : 'Create group' ?></button>
-            <?php endif; ?>
+            <button class="btn btn--primary" type="submit">
+                <?= icon('check') ?><?= $isEdit ? e(t('action.save')) : 'Create group' ?>
+            </button>
         </div>
     </div>
 </form>

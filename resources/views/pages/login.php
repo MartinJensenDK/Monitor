@@ -29,6 +29,28 @@
         </div>
     <?php endif; ?>
 
+    <?php if (App\Entra\Entra::ssoEnabled()): ?>
+        <a class="btn btn--primary" href="/auth/entra" style="width:100%;margin-bottom:16px;">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="3" y="3" width="8.4" height="8.4" fill="#f25022"/>
+                <rect x="12.6" y="3" width="8.4" height="8.4" fill="#7fba00"/>
+                <rect x="3" y="12.6" width="8.4" height="8.4" fill="#00a4ef"/>
+                <rect x="12.6" y="12.6" width="8.4" height="8.4" fill="#ffb900"/>
+            </svg>
+            Sign in with Microsoft
+        </a>
+
+        <?php if (App\Entra\Entra::localLoginAllowed()): ?>
+            <p class="login-divider"><span>or with a password</span></p>
+        <?php endif; ?>
+    <?php endif; ?>
+
+    <?php if (!App\Entra\Entra::localLoginAllowed()): ?>
+        <p class="muted" style="font-size:13px;">
+            This site signs in through Microsoft only. If you cannot get in, ask an administrator to turn password
+            sign-in back on under Settings.
+        </p>
+    <?php else: ?>
     <form class="card__form" method="post" action="/login">
         <?= csrf_field() ?>
 
@@ -48,6 +70,7 @@
             <span class="check__text">Keep me signed in<small>For 30 days on this device.</small></span>
         </label>
 
-        <button class="btn btn--primary" type="submit">Sign in</button>
+        <button class="btn <?= App\Entra\Entra::ssoEnabled() ? '' : 'btn--primary' ?>" type="submit">Sign in</button>
     </form>
+    <?php endif; ?>
 </div>

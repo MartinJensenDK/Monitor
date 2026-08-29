@@ -6,6 +6,7 @@ use App\Core\Router;
 use App\Http\Controllers\ApiController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\EntraController;
 use App\Http\Controllers\GroupsController;
 use App\Http\Controllers\IncidentsController;
 use App\Http\Controllers\InstallController;
@@ -25,6 +26,10 @@ return static function (Router $router): void {
     $router->post('/login', [AuthController::class, 'login'])->guest();
     $router->post('/logout', [AuthController::class, 'logout']);
     $router->post('/theme', [AuthController::class, 'theme'])->public();
+
+    // Microsoft Entra ID single sign-on
+    $router->get('/auth/entra', [EntraController::class, 'start'])->guest();
+    $router->get('/auth/entra/callback', [EntraController::class, 'callback'])->guest();
 
     // Dashboard and live data
     $router->get('/', [DashboardController::class, 'index'])->can('dashboard.view');
@@ -69,6 +74,10 @@ return static function (Router $router): void {
     $router->post('/settings/channels', [SettingsController::class, 'storeChannel'])->can('settings.manage');
     $router->post('/settings/channels/{id}', [SettingsController::class, 'updateChannel'])->can('settings.manage');
     $router->post('/settings/channels/{id}/delete', [SettingsController::class, 'destroyChannel'])->can('settings.manage');
+    $router->post('/settings/entra', [SettingsController::class, 'updateEntra'])->can('settings.manage');
+    $router->post('/settings/entra/test', [SettingsController::class, 'testEntra'])->can('settings.manage');
+    $router->get('/settings/entra/groups', [SettingsController::class, 'entraGroups'])->can('settings.manage');
+    $router->post('/settings/entra/sync', [SettingsController::class, 'syncEntra'])->can('settings.manage');
     $router->get('/settings/activity', [SettingsController::class, 'activity'])->can('audit.view');
 
     $router->get('/profile', [ProfileController::class, 'show'])->can('profile.edit');

@@ -1434,3 +1434,22 @@ code {
 .log-status--sent { color: var(--up); }
 .log-status--failed { color: var(--down); }
 .log-status--skipped { color: var(--ink-muted); }
+
+/* ── Sign-in divider ────────────────────────────────────────────────── */
+
+.login-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0 0 16px;
+    font-size: 12px;
+    color: var(--ink-muted);
+}
+
+.login-divider::before,
+.login-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+}

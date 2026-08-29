@@ -189,6 +189,12 @@ expected did not arrive.
 Local sendmail works, but mail from a server without correct SPF and DKIM records
 usually lands in spam. If alerts go missing, that is the first thing to check.
 
+## Signing in with Microsoft
+
+Optional. Monitor can use Microsoft Entra ID for sign-in, for group membership,
+or for both — see [ENTRA.md](ENTRA.md) for the app registration, the two Graph
+permissions it needs, and what the sync does to your accounts.
+
 ## Ping and ICMP
 
 Sending an ICMP echo needs a privilege that plenty of hosts do not hand out.

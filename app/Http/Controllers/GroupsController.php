@@ -31,6 +31,7 @@ final class GroupsController extends Controller
             'members' => [],
             'users' => Users::all(),
             'monitors' => [],
+            'grantsRole' => null,
         ]);
     }
 
@@ -44,6 +45,7 @@ final class GroupsController extends Controller
             'members' => Groups::memberIds((int) $group['id']),
             'users' => Users::all(),
             'monitors' => Groups::monitors((int) $group['id']),
+            'grantsRole' => Groups::roleMapping((int) $group['id']),
         ]);
     }
 
@@ -62,6 +64,7 @@ final class GroupsController extends Controller
 
         $id = Groups::create((string) $request->input('name', ''), (string) $request->input('description', ''));
         Groups::syncMembers($id, array_map('intval', $request->arrayInput('members')));
+        Groups::setRoleMapping($id, $this->roleInput($request));
 
         AuditLog::record('group.created', 'group', $id, 'Created group ' . $request->input('name', ''));
         $this->success('Group created.');
@@ -74,7 +77,10 @@ final class GroupsController extends Controller
         $group = $this->findOrFail($request->intParam('id'));
 
         if (Groups::isManaged($group)) {
-            $this->error('This group is maintained in Microsoft Entra ID. Change it there and it will sync back.');
+            // Name and members come from the directory, but which role the
+            // group grants is this application's decision, so that still saves.
+            Groups::setRoleMapping((int) $group['id'], $this->roleInput($request));
+            $this->success('Role mapping saved. Name and members keep coming from Entra ID.');
 
             return $this->redirect('/groups/' . $group['id']);
         }
@@ -92,6 +98,7 @@ final class GroupsController extends Controller
 
         Groups::update((int) $group['id'], (string) $request->input('name', ''), (string) $request->input('description', ''));
         Groups::syncMembers((int) $group['id'], array_map('intval', $request->arrayInput('members')));
+        Groups::setRoleMapping((int) $group['id'], $this->roleInput($request));
 
         AuditLog::record('group.updated', 'group', (int) $group['id'], 'Updated group ' . $request->input('name', ''));
         $this->success('Group saved.');
@@ -114,6 +121,14 @@ final class GroupsController extends Controller
         $this->success('Group deleted. Monitors shared only with it are now visible to admins only.');
 
         return $this->redirect('/groups');
+    }
+
+    /** Which role this group grants, or null for "no opinion". */
+    private function roleInput(Request $request): ?string
+    {
+        $role = (string) $request->input('grants_role', '');
+
+        return in_array($role, ['admin', 'editor', 'viewer'], true) ? $role : null;
     }
 
     /** @return array<string,mixed> */

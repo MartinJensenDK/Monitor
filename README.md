@@ -39,19 +39,17 @@ down. Website and endpoint checks also record TLS certificate expiry.
   automatically on recovery, with duration and cause. Acknowledgeable.
 - **Roles and groups** — a role sets what a person may do; group membership sets
   which monitors they may do it to.
+- **Microsoft Entra ID** — sign in with a work account, and mirror directory
+  groups so membership is maintained in Entra rather than here. A group can grant
+  a role, so "who is an administrator" also lives in one place. Read-only: Monitor
+  never writes to your directory. See [docs/ENTRA.md](docs/ENTRA.md)
 - **Light and dark** — chosen explicitly or following the visitor's system, applied
   server-side so there is no flash on page load.
 - **Audit log** — who changed what, when, from which address.
 
 ### Coming next
 
-| Stage | What arrives |
-|---|---|
-| 3 | Microsoft Entra ID — SSO sign-in and syncing users and groups from Graph, so group membership is maintained in Entra rather than here |
-| later | Public status page, maintenance windows, webhooks, API tokens, 2FA |
-
-The database schema for stage 3 is already in place, so upgrading adds behaviour
-without touching your data.
+Public status page, maintenance windows, webhooks and Slack, API tokens, 2FA.
 
 ---
 

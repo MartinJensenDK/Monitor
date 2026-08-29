@@ -170,5 +170,67 @@
         toggle.setAttribute('aria-expanded', String(!target.hidden));
     });
 
+    // Entra group picker: ask the directory for its groups so nobody has to
+    // paste object ids, and keep whatever is already selected checked.
+    var entraLoad = document.querySelector('[data-entra-load]');
+    if (entraLoad) {
+        var list = document.querySelector('[data-entra-groups]');
+        var result = document.querySelector('[data-entra-result]');
+        var empty = document.querySelector('[data-entra-empty]');
+
+        entraLoad.addEventListener('click', function () {
+            entraLoad.disabled = true;
+            result.setAttribute('data-state', 'busy');
+            result.textContent = 'Asking the directory…';
+
+            fetch('/settings/entra/groups', {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'fetch' }
+            }).then(function (response) {
+                return response.json();
+            }).then(function (payload) {
+                if (!payload.ok) {
+                    result.setAttribute('data-state', 'error');
+                    result.textContent = payload.message || 'The directory could not be read.';
+                    return;
+                }
+
+                var selected = {};
+                list.querySelectorAll('input[type="checkbox"]').forEach(function (input) {
+                    if (input.checked) selected[input.value] = true;
+                });
+
+                list.innerHTML = payload.groups.map(function (group) {
+                    var checked = selected[group.id] ? ' checked' : '';
+                    var detail = group.description || group.id;
+                    return '<label class="check">' +
+                        '<input type="checkbox" name="entra_groups[]" value="' + escapeAttr(group.id) + '"' + checked + '>' +
+                        '<span class="check__text">' + escapeHtml(group.name) +
+                        '<small>' + escapeHtml(detail) + '</small></span></label>';
+                }).join('');
+
+                if (empty) empty.hidden = true;
+
+                result.setAttribute('data-state', 'ok');
+                result.textContent = payload.groups.length + ' group(s) in the directory. Tick the ones to mirror, then save.';
+            }).catch(function () {
+                result.setAttribute('data-state', 'error');
+                result.textContent = 'The request failed. Reload the page and try again.';
+            }).finally(function () {
+                entraLoad.disabled = false;
+            });
+        });
+    }
+
+    function escapeHtml(value) {
+        var div = document.createElement('div');
+        div.textContent = value == null ? '' : value;
+        return div.innerHTML;
+    }
+
+    function escapeAttr(value) {
+        return String(value == null ? '' : value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    }
+
     window.MonitorRelative = relative;
 })();

@@ -40,6 +40,20 @@ final class Settings
         'smtp_username' => '',
         'smtp_password' => '',
         'notifications_enabled' => '0',
+
+        // Microsoft Entra ID
+        'entra_enabled' => '0',
+        'entra_tenant_id' => '',
+        'entra_client_id' => '',
+        'entra_client_secret' => '',
+        'entra_allow_local_login' => '1',
+        'entra_auto_provision' => '1',
+        'entra_sync_enabled' => '0',
+        'entra_sync_groups' => '[]',
+        'entra_default_role' => 'viewer',
+        'entra_last_sync_at' => '',
+        'entra_last_sync_summary' => '',
+        'entra_last_sync_status' => '',
     ];
 
     /** @return array<string,string> */

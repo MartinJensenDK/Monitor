@@ -28,6 +28,7 @@
                         <th>Group</th>
                         <th>Members</th>
                         <th>Monitors</th>
+                        <th>Grants</th>
                         <th>Source</th>
                         <th class="table__right"></th>
                     </tr>
@@ -43,6 +44,12 @@
                             </td>
                             <td class="num"><?= (int) $group['member_count'] ?></td>
                             <td class="num"><?= (int) $group['monitor_count'] ?></td>
+                            <td>
+                                <?php $grants = App\Domain\Groups::roleMapping((int) $group['id']); ?>
+                                <?= $grants === null
+                                    ? '<span class="muted">—</span>'
+                                    : '<span class="pill pill--plain">' . e(App\Core\Rbac::label($grants)) . '</span>' ?>
+                            </td>
                             <td>
                                 <?php if ($group['source'] === 'entra'): ?>
                                     <span class="tag"><?= icon('lock', 'icon') ?>Entra ID</span>
