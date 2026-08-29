@@ -132,7 +132,8 @@ $value = static function (string $key, string $default = '') use ($user): string
     <form id="delete-user" method="post" action="/users/<?= (int) $user['id'] ?>/delete"
           data-confirm="Remove <?= e((string) $user['name']) ?>?"
           data-confirm-detail="Their monitors stay, but they lose access immediately."
-          data-confirm-label="Remove person">
+          data-confirm-label="Remove person"
+          data-confirm-tone="danger">
         <?= csrf_field() ?>
     </form>
 <?php endif; ?>

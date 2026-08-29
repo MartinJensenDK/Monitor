@@ -78,7 +78,8 @@ $circumference = 2 * M_PI * 34;
                     <form method="post" action="/monitors/<?= $id ?>/delete"
                           data-confirm="Delete <?= e((string) $monitor['name']) ?>?"
                           data-confirm-detail="Its checks, incidents and history go with it. This cannot be undone."
-                          data-confirm-label="Delete monitor">
+                          data-confirm-label="Delete monitor"
+                          data-confirm-tone="danger">
                         <?= csrf_field() ?>
                         <button class="btn btn--sm btn--danger" type="submit"><?= icon('trash') ?><?= e(t('action.delete')) ?></button>
                     </form>

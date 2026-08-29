@@ -16,6 +16,10 @@
  *
  * On a <form> it covers any submit; on a button it covers that button, which
  * is what lets one form have both a Save and a Delete.
+ *
+ * The dialog's confirm button takes its look — and its icon — from the button
+ * that was pressed, so the thing you press to finish the job is the same thing
+ * you pressed to start it.
  */
 (function () {
     'use strict';
@@ -69,6 +73,7 @@
         var detail = options.detail || '';
         var label = options.label || 'Confirm';
         var danger = options.tone === 'danger';
+        var icon = options.icon || null;
 
         var element = build();
 
@@ -84,8 +89,12 @@
         detailNode.hidden = detail === '';
 
         var confirmButton = element.querySelector('[value="confirm"]');
-        confirmButton.textContent = label;
         confirmButton.className = 'btn ' + (danger ? 'btn--danger' : 'btn--primary');
+        confirmButton.textContent = '';
+        if (icon) {
+            confirmButton.appendChild(icon.cloneNode(true));
+        }
+        confirmButton.appendChild(document.createTextNode(label));
 
         element.returnValue = 'cancel';
 
@@ -95,14 +104,21 @@
         });
     }
 
-    /** Read the question off whichever element carries it. */
-    function optionsFrom(element) {
+    /**
+     * Read the question off whichever element carries it. The look comes from
+     * the button that was pressed — which, for a form-level confirmation, is
+     * not the same element the question is written on.
+     */
+    function optionsFrom(element, trigger) {
+        var button = trigger || element;
+
         return {
             title: element.getAttribute('data-confirm'),
             detail: element.getAttribute('data-confirm-detail') || '',
             label: element.getAttribute('data-confirm-label') || 'Confirm',
             tone: element.getAttribute('data-confirm-tone')
-                || (element.classList && element.classList.contains('btn--danger') ? 'danger' : '')
+                || (button.classList && button.classList.contains('btn--danger') ? 'danger' : ''),
+            icon: button.querySelector ? button.querySelector('svg') : null
         };
     }
 
@@ -143,7 +159,7 @@
         event.preventDefault();
         var submitter = event.submitter;
 
-        ask(optionsFrom(form)).then(function (confirmed) {
+        ask(optionsFrom(form, submitter)).then(function (confirmed) {
             if (!confirmed) return;
 
             bypass = true;
