@@ -76,7 +76,9 @@ $circumference = 2 * M_PI * 34;
 
                 <?php if ($canDelete): ?>
                     <form method="post" action="/monitors/<?= $id ?>/delete"
-                          data-confirm="Delete <?= e((string) $monitor['name']) ?> and all of its history? This cannot be undone.">
+                          data-confirm="Delete <?= e((string) $monitor['name']) ?>?"
+                          data-confirm-detail="Its checks, incidents and history go with it. This cannot be undone."
+                          data-confirm-label="Delete monitor">
                         <?= csrf_field() ?>
                         <button class="btn btn--sm btn--danger" type="submit"><?= icon('trash') ?><?= e(t('action.delete')) ?></button>
                     </form>

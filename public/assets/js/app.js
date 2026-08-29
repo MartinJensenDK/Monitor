@@ -1,6 +1,7 @@
 /**
- * Shell behaviour: theme switching, destructive-action confirmation, the UTC
- * clock in the top bar, and form conveniences. No framework, no build step.
+ * Shell behaviour: theme switching, tabs, the UTC clock in the top bar, and the
+ * small conveniences on forms. Confirmations live in modal.js.
+ * No framework, no build step.
  */
 (function () {
     'use strict';
@@ -24,13 +25,18 @@
         document.cookie = 'monitor_theme=' + theme + ';path=/;max-age=31536000;samesite=lax';
     });
 
-    /* ── Confirmations ──────────────────────────────────────────────── */
+    /* ── Filters ────────────────────────────────────────────────────── */
 
-    document.addEventListener('submit', function (event) {
-        var form = event.target;
-        var message = form.getAttribute('data-confirm');
-        if (message && !window.confirm(message)) {
-            event.preventDefault();
+    // A select that filters a list applies itself. The form keeps its own
+    // submit button for anyone without JavaScript.
+    document.addEventListener('change', function (event) {
+        var control = event.target.closest('[data-autosubmit]');
+        if (!control || !control.form) return;
+
+        if (typeof control.form.requestSubmit === 'function') {
+            control.form.requestSubmit();
+        } else {
+            control.form.submit();
         }
     });
 

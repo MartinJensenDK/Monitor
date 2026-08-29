@@ -27,14 +27,14 @@ $queryFor = static function (array $overrides) use ($filters): string {
                            placeholder="Name or URL">
                 </label>
 
-                <select class="select" name="status" onchange="this.form.submit()" style="width:auto;">
+                <select class="select" name="status" data-autosubmit style="width:auto;">
                     <?php foreach (['all' => 'Any status', 'up' => 'Up', 'degraded' => 'Degraded', 'down' => 'Down', 'paused' => 'Paused', 'pending' => 'Pending'] as $value => $label): ?>
                         <option value="<?= e($value) ?>" <?= $filters['status'] === $value ? 'selected' : '' ?>><?= e($label) ?></option>
                     <?php endforeach; ?>
                 </select>
 
                 <?php if ($groups !== []): ?>
-                    <select class="select" name="group" onchange="this.form.submit()" style="width:auto;">
+                    <select class="select" name="group" data-autosubmit style="width:auto;">
                         <option value="0">Any group</option>
                         <?php foreach ($groups as $group): ?>
                             <option value="<?= (int) $group['id'] ?>" <?= (int) $filters['group'] === (int) $group['id'] ? 'selected' : '' ?>>
@@ -44,7 +44,7 @@ $queryFor = static function (array $overrides) use ($filters): string {
                     </select>
                 <?php endif; ?>
 
-                <noscript><button class="btn" type="submit"><?= e(t('action.filter')) ?></button></noscript>
+                <button class="btn" type="submit"><?= e(t('action.filter')) ?></button>
             </form>
 
             <?php if (can('monitors.create')): ?>

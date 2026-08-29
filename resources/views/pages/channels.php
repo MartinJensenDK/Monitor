@@ -75,7 +75,9 @@
                                             <button class="btn btn--sm btn--danger" type="submit"
                                                     formaction="/settings/channels/<?= (int) $channel['id'] ?>/delete"
                                                     formnovalidate
-                                                    onclick="return confirm('Delete <?= e((string) $channel['name']) ?>? Monitors using it stop notifying through it.')">
+                                                    data-confirm="Delete <?= e((string) $channel['name']) ?>?"
+                                                    data-confirm-detail="Monitors using it stop notifying through it."
+                                                    data-confirm-label="Delete channel">
                                                 <?= icon('trash') ?><?= e(t('action.delete')) ?>
                                             </button>
                                         <?php endif; ?>

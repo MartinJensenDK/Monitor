@@ -130,7 +130,9 @@ $value = static function (string $key, string $default = '') use ($user): string
 
 <?php if ($isEdit): ?>
     <form id="delete-user" method="post" action="/users/<?= (int) $user['id'] ?>/delete"
-          data-confirm="Remove <?= e((string) $user['name']) ?>? Their monitors stay, but they lose access immediately.">
+          data-confirm="Remove <?= e((string) $user['name']) ?>?"
+          data-confirm-detail="Their monitors stay, but they lose access immediately."
+          data-confirm-label="Remove person">
         <?= csrf_field() ?>
     </form>
 <?php endif; ?>

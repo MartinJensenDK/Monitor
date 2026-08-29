@@ -149,6 +149,7 @@ $isActive = static function (string $match) use ($currentPath): bool {
     </div>
 </div>
 
+<script src="<?= asset('assets/js/modal.js') ?>" defer></script>
 <script src="<?= asset('assets/js/app.js') ?>" defer></script>
 <script src="<?= asset('assets/js/tape.js') ?>" defer></script>
 <script src="<?= asset('assets/js/live.js') ?>" defer></script>

@@ -1508,3 +1508,81 @@ code {
 [hidden] {
     display: none !important;
 }
+
+/* ── Confirmation dialog ────────────────────────────────────────────────
+   The browser's own confirm() cannot be styled and names the site rather
+   than the thing being deleted. This is the same card as the rest of the
+   interface, with the consequence spelled out under the question.       */
+
+.modal {
+    width: min(420px, calc(100vw - 32px));
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--panel);
+    color: var(--ink);
+    box-shadow: var(--shadow-pop);
+}
+
+.modal::backdrop {
+    background: rgba(8, 12, 16, 0.55);
+    backdrop-filter: blur(2px);
+}
+
+.modal[open] {
+    animation: modal-in 0.14s ease-out;
+}
+
+.modal[open]::backdrop {
+    animation: modal-backdrop-in 0.14s ease-out;
+}
+
+@keyframes modal-in {
+    from { opacity: 0; transform: translateY(6px) scale(0.99); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes modal-backdrop-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.modal__inner {
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.modal__title {
+    font-family: var(--font-display);
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.35;
+    margin: 0;
+    text-wrap: balance;
+}
+
+.modal__detail {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--ink-muted);
+}
+
+.modal__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+@media (max-width: 420px) {
+    .modal__actions {
+        flex-direction: column-reverse;
+    }
+
+    .modal__actions .btn {
+        width: 100%;
+    }
+}

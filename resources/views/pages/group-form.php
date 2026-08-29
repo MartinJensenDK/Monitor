@@ -148,7 +148,9 @@ $value = static function (string $key) use ($group): string {
 
 <?php if ($isEdit && !$managed): ?>
     <form id="delete-group" method="post" action="/groups/<?= (int) $group['id'] ?>/delete"
-          data-confirm="Delete <?= e((string) $group['name']) ?>? Monitors shared only with it become visible to administrators only.">
+          data-confirm="Delete <?= e((string) $group['name']) ?>?"
+          data-confirm-detail="Monitors shared only with this group become visible to administrators only."
+          data-confirm-label="Delete group">
         <?= csrf_field() ?>
     </form>
 <?php endif; ?>
