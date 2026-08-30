@@ -8,19 +8,33 @@
 
     /* ── Theme ──────────────────────────────────────────────────────── */
 
+    // Which icon shows is CSS's job; script only moves the attribute the CSS
+    // reads, stores the choice, and renames the button after the outcome it
+    // will produce next time.
     function applyTheme(theme) {
         document.documentElement.setAttribute('data-theme', theme);
-        document.querySelectorAll('[data-theme-option]').forEach(function (button) {
-            button.setAttribute('aria-pressed', String(button.getAttribute('data-theme-option') === theme));
+        document.querySelectorAll('[data-theme-toggle]').forEach(function (button) {
+            var next = theme === 'dark' ? 'data-label-light' : 'data-label-dark';
+            var label = button.getAttribute(next) || '';
+            button.setAttribute('title', label);
+            button.setAttribute('aria-label', label);
         });
     }
 
     document.addEventListener('click', function (event) {
-        var button = event.target.closest('[data-theme-option]');
+        var button = event.target.closest('[data-theme-toggle]');
         if (!button) return;
 
         event.preventDefault();
-        var theme = button.getAttribute('data-theme-option');
+        // Nothing stamped means the page is following the system, which only
+        // happens before a theme has ever been resolved; ask the browser what
+        // that currently looks like so the first click flips what is on screen.
+        var current = document.documentElement.getAttribute('data-theme');
+        if (current !== 'light' && current !== 'dark') {
+            current = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+
+        var theme = current === 'dark' ? 'light' : 'dark';
         applyTheme(theme);
         document.cookie = 'monitor_theme=' + theme + ';path=/;max-age=31536000;samesite=lax';
     });

@@ -209,7 +209,7 @@ final class Sync
             'status' => $member['enabled'] ? 'active' : 'disabled',
             'timezone' => Settings::get('default_timezone', 'UTC'),
             'locale' => Settings::get('default_locale', 'en'),
-            'theme' => 'system',
+            'theme' => 'light',
             'auth_provider' => 'entra',
             'external_id' => $member['id'],
             'synced_at' => $now,

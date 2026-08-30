@@ -96,7 +96,7 @@ $tabs = [
                         <div class="field">
                             <label class="field__label" for="theme_default">Default theme</label>
                             <select class="select" id="theme_default" name="theme_default">
-                                <?php foreach (['system' => 'Match the visitor’s system', 'light' => 'Light', 'dark' => 'Dark'] as $value => $label): ?>
+                                <?php foreach (['light' => 'Light', 'dark' => 'Dark'] as $value => $label): ?>
                                     <option value="<?= e($value) ?>" <?= $settings['theme_default'] === $value ? 'selected' : '' ?>><?= e($label) ?></option>
                                 <?php endforeach; ?>
                             </select>

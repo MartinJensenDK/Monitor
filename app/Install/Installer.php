@@ -96,7 +96,7 @@ final class Installer
             'status' => 'active',
             'timezone' => (string) ($site['timezone'] ?? 'UTC'),
             'locale' => (string) ($site['locale'] ?? 'en'),
-            'theme' => 'system',
+            'theme' => 'light',
             'auth_provider' => 'local',
             'created_at' => $now,
         ]);

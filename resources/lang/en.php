@@ -21,6 +21,8 @@ return [
     'nav.activity' => 'Activity log',
     'nav.profile' => 'Your profile',
     'nav.sign_out' => 'Sign out',
+    'nav.theme_dark' => 'Switch to dark',
+    'nav.theme_light' => 'Switch to light',
 
     // Status
     'status.up' => 'up',

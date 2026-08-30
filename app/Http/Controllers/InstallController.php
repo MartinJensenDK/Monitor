@@ -20,7 +20,7 @@ final class InstallController extends Controller
     public function show(Request $request): Response
     {
         View::share('old', Session::takeOld());
-        View::share('theme', 'system');
+        View::share('theme', 'light');
 
         return Response::html(View::render('install/wizard', [
             'title' => 'Set up',

@@ -216,14 +216,21 @@ final class App
         View::share('title', '');
     }
 
+    /**
+     * Light or dark, never anything else. Installs that predate the single
+     * toggle may still hold 'system' in the cookie or the setting; both fall
+     * through to light, which is what the stylesheet paints by default.
+     */
     private static function resolveTheme(Request $request): string
     {
         $cookie = $request->cookie('monitor_theme');
-        if (in_array($cookie, ['light', 'dark', 'system'], true)) {
+        if (in_array($cookie, ['light', 'dark'], true)) {
             return $cookie;
         }
 
-        return self::$installed ? Settings::get('theme_default', 'system') : 'system';
+        $default = self::$installed ? Settings::get('theme_default', 'light') : 'light';
+
+        return $default === 'dark' ? 'dark' : 'light';
     }
 
     public static function logError(Throwable $e): void

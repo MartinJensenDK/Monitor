@@ -71,9 +71,9 @@ final class SettingsController extends Controller
             'default_role' => in_array($request->input('default_role'), ['admin', 'editor', 'viewer'], true)
                 ? (string) $request->input('default_role')
                 : 'viewer',
-            'theme_default' => in_array($request->input('theme_default'), ['light', 'dark', 'system'], true)
+            'theme_default' => in_array($request->input('theme_default'), ['light', 'dark'], true)
                 ? (string) $request->input('theme_default')
-                : 'system',
+                : 'light',
             'allow_private_targets' => $request->boolean('allow_private_targets') ? '1' : '0',
             'check_concurrency' => (string) max(1, min(100, $request->int('check_concurrency', 20))),
             'retention_checks_days' => (string) max(1, min(365, $request->int('retention_checks_days', 14))),

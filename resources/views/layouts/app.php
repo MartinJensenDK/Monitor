@@ -111,17 +111,17 @@ $isActive = static function (string $match) use ($currentPath): bool {
                     <span class="readout__clock num" data-clock>--:--:--</span>
                 </span>
 
-                <div class="seg" role="group" aria-label="Theme">
-                    <button type="button" data-theme-option="light" aria-pressed="<?= $theme === 'light' ? 'true' : 'false' ?>" title="Light">
-                        <?= icon('sun', 'icon') ?><span class="visually-hidden">Light</span>
-                    </button>
-                    <button type="button" data-theme-option="dark" aria-pressed="<?= $theme === 'dark' ? 'true' : 'false' ?>" title="Dark">
-                        <?= icon('moon', 'icon') ?><span class="visually-hidden">Dark</span>
-                    </button>
-                    <button type="button" data-theme-option="system" aria-pressed="<?= $theme === 'system' ? 'true' : 'false' ?>" title="Match my system">
-                        <?= icon('desktop', 'icon') ?><span class="visually-hidden">System</span>
-                    </button>
-                </div>
+                <?php // The button shows the theme it switches to, so the icon is the
+                      // outcome rather than the current state. Which of the two icons
+                      // is visible is decided in CSS from <html data-theme>, so the
+                      // server's own choice paints correctly before any script runs. ?>
+                <button class="btn btn--ghost btn--icon theme-toggle" type="button" data-theme-toggle
+                        data-label-dark="<?= e(t('nav.theme_dark')) ?>" data-label-light="<?= e(t('nav.theme_light')) ?>"
+                        title="<?= e(t($theme === 'dark' ? 'nav.theme_light' : 'nav.theme_dark')) ?>"
+                        aria-label="<?= e(t($theme === 'dark' ? 'nav.theme_light' : 'nav.theme_dark')) ?>">
+                    <?= icon('moon', 'icon theme-toggle__moon') ?>
+                    <?= icon('sun', 'icon theme-toggle__sun') ?>
+                </button>
 
                 <form method="post" action="/logout">
                     <?= csrf_field() ?>

@@ -19,6 +19,8 @@ return [
     'nav.activity' => 'Aktivitetslog',
     'nav.profile' => 'Din profil',
     'nav.sign_out' => 'Log ud',
+    'nav.theme_dark' => 'Skift til mørk',
+    'nav.theme_light' => 'Skift til lys',
 
     'status.up' => 'oppe',
     'status.down' => 'nede',

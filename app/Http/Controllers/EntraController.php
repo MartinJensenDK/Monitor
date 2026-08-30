@@ -162,7 +162,7 @@ final class EntraController extends Controller
             'status' => 'active',
             'timezone' => Settings::get('default_timezone', 'UTC'),
             'locale' => Settings::get('default_locale', 'en'),
-            'theme' => 'system',
+            'theme' => 'light',
             'auth_provider' => 'entra',
             'external_id' => $profile['external_id'],
             'synced_at' => $now,

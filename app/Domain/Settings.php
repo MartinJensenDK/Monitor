@@ -25,7 +25,7 @@ final class Settings
         'default_timezone' => 'UTC',
         'default_locale' => 'en',
         'default_role' => 'viewer',
-        'theme_default' => 'system',
+        'theme_default' => 'light',
         'allow_private_targets' => '0',
         'check_concurrency' => '20',
         'retention_checks_days' => '14',

@@ -95,7 +95,6 @@
 }
 
 @media (prefers-color-scheme: dark) {
-    :root[data-theme="system"],
     :root:not([data-theme]) {
         color-scheme: dark;
 
@@ -509,6 +508,20 @@ a:hover { text-decoration: underline; }
 }
 
 .btn--sm { padding: 4px 9px; font-size: 12px; }
+
+/* One button, two icons: the one showing is the theme a click switches to.
+   Swapping them in CSS rather than in script means the server's choice is
+   already right on the first paint. */
+.theme-toggle .theme-toggle__sun { display: none; }
+.theme-toggle .theme-toggle__moon { display: block; }
+
+:root[data-theme="dark"] .theme-toggle .theme-toggle__sun { display: block; }
+:root[data-theme="dark"] .theme-toggle .theme-toggle__moon { display: none; }
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) .theme-toggle .theme-toggle__sun { display: block; }
+    :root:not([data-theme]) .theme-toggle .theme-toggle__moon { display: none; }
+}
 
 .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
 

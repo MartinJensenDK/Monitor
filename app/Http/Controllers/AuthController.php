@@ -84,9 +84,9 @@ final class AuthController extends Controller
     /** Theme choice lives in a cookie so the server can set it before first paint. */
     public function theme(Request $request): Response
     {
-        $theme = (string) $request->input('theme', 'system');
-        if (!in_array($theme, ['light', 'dark', 'system'], true)) {
-            $theme = 'system';
+        $theme = (string) $request->input('theme', 'light');
+        if (!in_array($theme, ['light', 'dark'], true)) {
+            $theme = 'light';
         }
 
         setcookie('monitor_theme', $theme, [

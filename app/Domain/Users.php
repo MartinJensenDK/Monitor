@@ -51,7 +51,7 @@ final class Users
             'status' => $data['status'] ?? 'active',
             'timezone' => $data['timezone'] ?? 'UTC',
             'locale' => $data['locale'] ?? 'en',
-            'theme' => 'system',
+            'theme' => 'light',
             'auth_provider' => 'local',
             'created_at' => gmdate('Y-m-d H:i:s'),
             'updated_at' => gmdate('Y-m-d H:i:s'),
