@@ -42,11 +42,76 @@ final class Http
     }
 
     /**
+     * A profile photo, which is the one thing Graph answers with bytes rather
+     * than JSON. The caller passes the ETag it already holds; Microsoft then
+     * answers 304 and sends nothing when the picture has not changed.
+     *
+     * Nothing is thrown for a missing photo: plenty of people simply have
+     * none, and that is an answer, not a failure.
+     *
+     * @param array<string,string> $headers
+     * @return array{status:int,bytes:string,type:string,etag:string}
+     */
+    public static function getBinary(string $url, array $headers = [], string $etag = ''): array
+    {
+        $lines = ['Accept: image/jpeg, image/*;q=0.8'];
+        foreach ($headers as $name => $value) {
+            $lines[] = $name . ': ' . $value;
+        }
+        if ($etag !== '') {
+            $lines[] = 'If-None-Match: ' . $etag;
+        }
+
+        $response = self::raw($url, [CURLOPT_HTTPHEADER => $lines]);
+        $status = $response['status'];
+
+        if ($status >= 400 && $status !== 404) {
+            $decoded = json_decode($response['body'], true);
+            throw new DirectoryException($status, is_array($decoded)
+                ? self::explain($status, $decoded)
+                : sprintf('Microsoft answered %d when asked for a photo.', $status));
+        }
+
+        return [
+            'status' => $status,
+            'bytes' => $status === 200 ? $response['body'] : '',
+            'type' => $response['headers']['content-type'] ?? 'image/jpeg',
+            'etag' => $response['headers']['etag'] ?? '',
+        ];
+    }
+
+    /**
      * @param array<int,mixed> $options
      * @return array<string,mixed>
      */
     private static function request(string $url, array $options): array
     {
+        $response = self::raw($url, $options);
+        $status = $response['status'];
+
+        $decoded = json_decode($response['body'], true);
+        if (!is_array($decoded)) {
+            throw new RuntimeException(sprintf('Microsoft answered %d with something that is not JSON.', $status));
+        }
+
+        if ($status >= 400) {
+            throw new DirectoryException($status, self::explain($status, $decoded));
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * The curl call itself, with the response headers kept: the JSON path
+     * ignores them, the photo path needs the ETag out of them.
+     *
+     * @param array<int,mixed> $options
+     * @return array{status:int,body:string,headers:array<string,string>}
+     */
+    private static function raw(string $url, array $options): array
+    {
+        $headers = [];
+
         $handle = curl_init();
         curl_setopt_array($handle, $options + [
             CURLOPT_URL => $url,
@@ -57,6 +122,14 @@ final class Http
             CURLOPT_SSL_VERIFYHOST => 2,
             CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_USERAGENT => 'Monitor/1.0 (+uptime monitor)',
+            CURLOPT_HEADERFUNCTION => static function ($handle, string $line) use (&$headers): int {
+                $parts = explode(':', $line, 2);
+                if (count($parts) === 2) {
+                    $headers[strtolower(trim($parts[0]))] = trim($parts[1]);
+                }
+
+                return strlen($line);
+            },
         ]);
 
         $body = curl_exec($handle);
@@ -69,16 +142,7 @@ final class Http
             throw new RuntimeException('Could not reach Microsoft: ' . $error);
         }
 
-        $decoded = json_decode((string) $body, true);
-        if (!is_array($decoded)) {
-            throw new RuntimeException(sprintf('Microsoft answered %d with something that is not JSON.', $status));
-        }
-
-        if ($status >= 400) {
-            throw new DirectoryException($status, self::explain($status, $decoded));
-        }
-
-        return $decoded;
+        return ['status' => $status, 'body' => (string) $body, 'headers' => $headers];
     }
 
     /**

@@ -58,6 +58,8 @@ return static function (Router $router): void {
     $router->get('/users/{id}/edit', [UsersController::class, 'edit'])->can('users.manage');
     $router->post('/users/{id}', [UsersController::class, 'update'])->can('users.manage');
     $router->post('/users/{id}/delete', [UsersController::class, 'destroy'])->can('users.manage');
+    // Signed in is enough: the controller decides whose photo you may see.
+    $router->get('/users/{id}/photo', [UsersController::class, 'photo']);
 
     $router->get('/groups', [GroupsController::class, 'index'])->can('groups.view');
     $router->get('/groups/new', [GroupsController::class, 'create'])->can('groups.manage');

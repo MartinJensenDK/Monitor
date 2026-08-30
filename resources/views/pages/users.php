@@ -2,7 +2,6 @@
 /** @var array<int,array<string,mixed>> $users @var string $search */
 
 use App\Core\Rbac;
-use App\Support\Str;
 ?>
 <section class="panel">
     <div class="panel__head">
@@ -36,7 +35,7 @@ use App\Support\Str;
                     <tr>
                         <td>
                             <span class="inline">
-                                <span class="avatar"><?= e(Str::initials((string) $user['name'])) ?></span>
+                                <?= avatar($user) ?>
                                 <span>
                                     <strong><?= e((string) $user['name']) ?></strong>
                                     <?php if ($user['status'] !== 'active'): ?>

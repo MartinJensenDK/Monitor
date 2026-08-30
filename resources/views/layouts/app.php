@@ -10,7 +10,6 @@
  */
 
 use App\Domain\Incidents;
-use App\Support\Str;
 
 $openIncidents = Incidents::openCount();
 $counts = App\Domain\Monitors::statusCounts();
@@ -88,7 +87,7 @@ $isActive = static function (string $match) use ($currentPath): bool {
 
         <div class="rail__foot">
             <a class="rail__user" href="/profile">
-                <span class="avatar"><?= e(Str::initials((string) ($authUser['name'] ?? '?'))) ?></span>
+                <?= avatar(is_array($authUser) ? $authUser : []) ?>
                 <span class="rail__userinfo">
                     <span class="rail__username truncate"><?= e((string) ($authUser['name'] ?? '')) ?></span>
                     <span class="rail__role"><?= e(App\Core\Rbac::label((string) ($authUser['role'] ?? 'viewer'))) ?></span>

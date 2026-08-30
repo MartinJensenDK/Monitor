@@ -8,10 +8,17 @@ use App\Core\Rbac;
 
     <section class="panel">
         <div class="panel__head">
+            <?= avatar($user, 'avatar avatar--lg') ?>
             <h2>You</h2>
             <span class="pill pill--plain" style="margin-left:auto;"><?= e(Rbac::label((string) $user['role'])) ?></span>
         </div>
         <div class="panel__body">
+            <?php if (($user['auth_provider'] ?? 'local') === 'entra'): ?>
+                <p class="flash flash--warning" style="margin-bottom:16px;">
+                    <?= icon('lock') ?><span>Your name, email address and picture come from Microsoft Entra ID
+                    and are rewritten on the next sync. Change them there, not here.</span>
+                </p>
+            <?php endif; ?>
             <div class="form-grid">
                 <div class="field">
                     <label class="field__label" for="name">Name</label>

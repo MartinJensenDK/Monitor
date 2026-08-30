@@ -157,6 +157,33 @@ if (!function_exists('local_time')) {
     }
 }
 
+if (!function_exists('avatar')) {
+    /**
+     * Someone's face, or their initials when there is no photo.
+     *
+     * The URL carries the photo's own timestamp, so a picture that changes in
+     * the directory arrives at a new address and browsers stop showing the old
+     * one. The alt text is deliberately empty: every place this appears puts
+     * the person's name right beside it, and a screen reader should not have
+     * to hear it twice.
+     *
+     * @param array<string,mixed> $user
+     */
+    function avatar(array $user, string $class = 'avatar'): string
+    {
+        $id = (int) ($user['id'] ?? 0);
+        $changed = (string) ($user['photo_updated_at'] ?? '');
+
+        if ($id > 0 && $changed !== '') {
+            return '<span class="' . e($class) . ' avatar--photo">'
+                . '<img src="/users/' . $id . '/photo?v=' . substr(sha1($changed), 0, 8) . '"'
+                . ' alt="" loading="lazy" decoding="async"></span>';
+        }
+
+        return '<span class="' . e($class) . '">' . e(App\Support\Str::initials((string) ($user['name'] ?? '?'))) . '</span>';
+    }
+}
+
 if (!function_exists('icon')) {
     function icon(string $name, string $class = 'icon'): string
     {

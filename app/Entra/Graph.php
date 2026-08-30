@@ -169,6 +169,31 @@ final class Graph
         return $users;
     }
 
+    /**
+     * Someone's profile photo.
+     *
+     * Graph keeps a handful of fixed sizes and refuses the ones a mailbox does
+     * not hold, so a named size is tried first and the original is the fallback.
+     * 120px covers the 30px avatar on a retina screen with room to spare.
+     *
+     * The returned status is the whole answer: 200 with bytes, 304 when the
+     * ETag still matches, 404 when this person has no photo.
+     *
+     * @return array{status:int,bytes:string,type:string,etag:string}
+     */
+    public static function photo(string $objectId, string $etag = ''): array
+    {
+        $base = Entra::graph() . '/users/' . rawurlencode($objectId);
+        $auth = ['Authorization' => 'Bearer ' . self::token()];
+
+        $sized = Http::getBinary($base . '/photos/120x120/$value', $auth, $etag);
+        if ($sized['status'] !== 404) {
+            return $sized;
+        }
+
+        return Http::getBinary($base . '/photo/$value', $auth, $etag);
+    }
+
     /** A cheap call that proves the credentials and permissions work. */
     /** @return array{ok:bool,message:string,groups:int} */
     public static function test(): array

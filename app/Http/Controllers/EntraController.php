@@ -14,6 +14,7 @@ use App\Domain\AuditLog;
 use App\Domain\Settings;
 use App\Entra\Entra;
 use App\Entra\Oidc;
+use App\Entra\Sync;
 use Throwable;
 use App\Core\App;
 
@@ -147,6 +148,10 @@ final class EntraController extends Controller
                 'updated_at' => $now,
             ], ['id' => (int) $user['id']]);
 
+            // Before the row is read back, so the picture is on the page they
+            // land on rather than the one after.
+            Sync::syncPhoto((int) $user['id'], $profile['external_id'], $now);
+
             return Db::selectOne('SELECT * FROM {{users}} WHERE `id` = ? LIMIT 1', [(int) $user['id']]);
         }
 
@@ -171,6 +176,8 @@ final class EntraController extends Controller
         ]);
 
         AuditLog::record('user.provisioned', 'user', $id, 'Created ' . $profile['email'] . ' from a Microsoft sign-in');
+
+        Sync::syncPhoto($id, $profile['external_id'], $now);
 
         return Db::selectOne('SELECT * FROM {{users}} WHERE `id` = ? LIMIT 1', [$id]);
     }

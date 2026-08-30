@@ -8,6 +8,7 @@ use App\Core\Db;
 use App\Core\Rbac;
 use App\Domain\AuditLog;
 use App\Domain\Settings;
+use App\Domain\UserPhotos;
 use App\Domain\Users;
 use Throwable;
 
@@ -27,7 +28,7 @@ final class Sync
     private const ROLE_RANK = [Rbac::ROLE_VIEWER => 1, Rbac::ROLE_EDITOR => 2, Rbac::ROLE_ADMIN => 3];
 
     /**
-     * @return array{ok:bool,groups:int,users:int,memberships:int,disabled:int,released:int,errors:array<int,string>,message:string}
+     * @return array{ok:bool,groups:int,users:int,memberships:int,photos:int,disabled:int,released:int,errors:array<int,string>,message:string}
      */
     public static function run(): array
     {
@@ -36,6 +37,7 @@ final class Sync
             'groups' => 0,
             'users' => 0,
             'memberships' => 0,
+            'photos' => 0,
             'disabled' => 0,
             'released' => 0,
             'errors' => [],
@@ -71,6 +73,7 @@ final class Sync
                 $summary['groups']++;
                 $summary['users'] += $result['users'];
                 $summary['memberships'] += $result['memberships'];
+                $summary['photos'] += $result['photos'];
                 $seenUsers = array_merge($seenUsers, $result['seen']);
             } catch (Throwable $e) {
                 $summary['ok'] = false;
@@ -110,7 +113,7 @@ final class Sync
     }
 
     /**
-     * @return array{users:int,memberships:int,seen:array<int,int>}
+     * @return array{users:int,memberships:int,photos:int,seen:array<int,int>}
      */
     private static function syncGroup(string $objectId, string $now): array
     {
@@ -123,13 +126,21 @@ final class Sync
         $members = Graph::groupMembers($objectId);
 
         $userIds = [];
+        $photos = 0;
         foreach ($members as $member) {
-            $userIds[] = self::upsertUser($member, $now);
+            $userId = self::upsertUser($member, $now);
+            $userIds[] = $userId;
+            $photos += self::syncPhoto($userId, $member['id'], $now);
         }
 
         $memberships = self::syncMembership($groupId, $userIds, $now);
 
-        return ['users' => count($userIds), 'memberships' => $memberships, 'seen' => $userIds];
+        return [
+            'users' => count($userIds),
+            'memberships' => $memberships,
+            'photos' => $photos,
+            'seen' => $userIds,
+        ];
     }
 
     /** @param array{id:string,name:string,description:string} $remote */
@@ -216,6 +227,64 @@ final class Sync
             'created_at' => $now,
             'updated_at' => $now,
         ]);
+    }
+
+    /**
+     * Mirror one person's profile photo.
+     *
+     * Three things keep this from turning an hourly sync into an hourly
+     * download of every picture in the company: a photo is only asked about
+     * once a day, the ETag we already hold goes out with the request so an
+     * unchanged picture answers 304, and "this person has no photo" is stored
+     * as an answer rather than retried forever.
+     *
+     * A photo is never worth failing a sync over. Anything that goes wrong is
+     * swallowed here — the account, its groups and its role have all already
+     * been mirrored correctly, and the picture can wait until tomorrow.
+     *
+     * Public because signing in with Microsoft goes through the same door:
+     * someone who is not in any mirrored group would otherwise never get a
+     * picture.
+     *
+     * @return int 1 when a new picture was stored, 0 otherwise
+     */
+    public static function syncPhoto(int $userId, string $objectId, string $now): int
+    {
+        if (!UserPhotos::due($userId)) {
+            return 0;
+        }
+
+        try {
+            $photo = Graph::photo($objectId, UserPhotos::etag($userId));
+
+            if ($photo['status'] === 304) {
+                UserPhotos::touch($userId, $now);
+
+                return 0;
+            }
+
+            // Only a plain "there is no photo" removes one. Anything else
+            // unexpected leaves what we already hold alone: a picture should
+            // not disappear from the interface because of a bad afternoon at
+            // Microsoft.
+            if ($photo['status'] === 404) {
+                UserPhotos::clear($userId, $now);
+
+                return 0;
+            }
+
+            if ($photo['status'] !== 200 || $photo['bytes'] === '') {
+                UserPhotos::touch($userId, $now);
+
+                return 0;
+            }
+
+            return UserPhotos::store($userId, $photo['bytes'], $photo['etag'], $now) ? 1 : 0;
+        } catch (Throwable) {
+            UserPhotos::touch($userId, $now);
+
+            return 0;
+        }
     }
 
     /**
@@ -394,6 +463,9 @@ final class Sync
 
         if ($summary['memberships'] > 0) {
             $parts[] = sprintf('%d membership change(s)', $summary['memberships']);
+        }
+        if ($summary['photos'] > 0) {
+            $parts[] = sprintf('%d photo(s)', $summary['photos']);
         }
         if ($summary['disabled'] > 0) {
             $parts[] = sprintf('%d account(s) disabled', $summary['disabled']);

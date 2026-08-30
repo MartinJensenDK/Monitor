@@ -13,6 +13,7 @@ use App\Core\Session;
 use App\Core\Validator;
 use App\Domain\AuditLog;
 use App\Domain\Groups;
+use App\Domain\UserPhotos;
 use App\Domain\Users;
 
 final class UsersController extends Controller
@@ -164,6 +165,49 @@ final class UsersController extends Controller
     }
 
     /** @return array<string,mixed> */
+    /**
+     * A mirrored profile photo.
+     *
+     * Served from the application rather than from the webroot: the bytes came
+     * from a directory, they are nobody's business outside the sign-in, and a
+     * file under public/ would be readable by anyone who guessed the name.
+     *
+     * You can always fetch your own — the navigation shows it on every page.
+     * Anyone else's needs the same permission as the list they appear in.
+     */
+    public function photo(Request $request): Response
+    {
+        $id = $request->intParam('id');
+        $self = (int) (Auth::user()['id'] ?? 0);
+
+        if ($id !== $self && !Auth::can('users.view')) {
+            throw HttpException::notFound('That photo does not exist.');
+        }
+
+        $photo = UserPhotos::find($id);
+        $bytes = $photo === null ? null : $photo['bytes'];
+
+        if ($bytes === null || $bytes === '') {
+            throw HttpException::notFound('That person has no photo.');
+        }
+
+        $etag = '"' . md5($bytes) . '"';
+        if ($request->header('If-None-Match') === $etag) {
+            return Response::notModified($etag);
+        }
+
+        return (new Response($bytes, 200, [
+            'Content-Type' => (string) $photo['content_type'],
+            'Content-Length' => (string) strlen($bytes),
+            'ETag' => $etag,
+            // Private: it belongs to one signed-in person, not to a shared
+            // proxy. The URL carries the photo's own timestamp, so a new
+            // picture arrives under a new address rather than waiting a day.
+            'Cache-Control' => 'private, max-age=86400',
+            'X-Content-Type-Options' => 'nosniff',
+        ]));
+    }
+
     private function findOrFail(int $id): array
     {
         $user = Users::find($id);

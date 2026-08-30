@@ -3,7 +3,8 @@
 Two things this gives you, and you can have either without the other:
 
 - **Sign in with Microsoft** — people use their work account instead of another password.
-- **Group sync** — membership is maintained in Entra ID and mirrored here, read-only.
+- **Group sync** — membership is maintained in Entra ID and mirrored here, read-only,
+  along with each person’s profile picture.
 
 Together they mean the answer to "who can see the production monitors" lives in
 one place, and stops being something to remember to update when someone joins or
@@ -104,6 +105,14 @@ object id, so a second run changes nothing.
   local account keeps it, and their history — the account is linked, not replaced.
 - **Membership** mirrors the directory. Rows the sync created are marked as such,
   so local membership of the same group is left alone.
+- **Profile pictures** are mirrored too, and shown wherever a person appears. A
+  picture is only asked about once a day, and the sync sends back the ETag it
+  already holds, so an unchanged photo answers 304 and costs nothing. Someone who
+  removes their picture in Entra loses it here on the next check; someone who has
+  none simply keeps their initials. Photos are scaled to 120px and re-encoded on
+  arrival, stored in the database, and served only to people who are signed in —
+  never written into the webroot. No extra Graph permission is needed:
+  `User.Read.All` already covers them.
 - **Someone who leaves a mirrored group** is disabled here, not deleted, so their
   history and audit trail survive. They are re-enabled if they come back.
 - **Someone disabled in the directory** is disabled here too.

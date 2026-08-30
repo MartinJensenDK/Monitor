@@ -368,6 +368,27 @@ a:hover { text-decoration: underline; }
     letter-spacing: 0.02em;
 }
 
+/* With a photo the circle is the picture, so the initials' tinted disc would
+   only show as a rim around it. */
+.avatar--photo {
+    background: var(--panel-2);
+    overflow: hidden;
+}
+
+.avatar--photo img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: inherit;
+}
+
+.avatar--lg {
+    width: 44px;
+    height: 44px;
+    font-size: 15px;
+}
+
 .rail__userinfo { min-width: 0; }
 .rail__username {
     font-weight: 600;

@@ -429,7 +429,8 @@ $tabs = [
                                    <?= $settings['entra_sync_enabled'] === '1' ? 'checked' : '' ?>>
                             <span class="check__text">
                                 Sync groups every hour
-                                <small>Members are read from the directory and mirrored here, read-only.</small>
+                                <small>Members are read from the directory and mirrored here, read-only,
+                                       along with their profile pictures. A picture is re-read once a day.</small>
                             </span>
                         </label>
                     </div>
