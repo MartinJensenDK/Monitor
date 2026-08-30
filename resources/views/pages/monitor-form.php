@@ -218,15 +218,23 @@ $renderStep = static function (string $index, array $step) use ($isEdit): string
 
                 <div class="field">
                     <label class="field__label" for="type"><?= e(t('monitor.type')) ?></label>
+                    <?php $availableTypes = Monitors::available(); ?>
                     <select class="select" id="type" name="type" data-type-select>
                         <?php foreach (Monitors::TYPES as $type): ?>
+                            <?php $usable = in_array($type, $availableTypes, true); ?>
                             <option value="<?= e($type) ?>"
                                     <?= $value('type', 'http') === $type ? 'selected' : '' ?>
-                                    <?= in_array($type, Monitors::AVAILABLE_TYPES, true) ? '' : 'disabled' ?>>
-                                <?= e(t('monitor.type_' . $type)) ?><?= in_array($type, Monitors::AVAILABLE_TYPES, true) ? '' : ' — ' . t('monitor.coming_soon') ?>
+                                    <?= $usable ? '' : 'disabled' ?>>
+                                <?= e(t('monitor.type_' . $type)) ?><?= $usable ? '' : ' — ' . t('monitor.needs_migration') ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
+                    <?php if (count($availableTypes) < count(Monitors::TYPES)): ?>
+                        <span class="field__hint">
+                            The greyed-out types are waiting on a database update. Run
+                            <code>php bin/migrate.php</code> on the server to switch them on.
+                        </span>
+                    <?php endif; ?>
                 </div>
 
                 <div class="field field--wide">

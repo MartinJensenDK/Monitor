@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Install;
 
+use App\Core\App;
 use App\Core\Db;
 use RuntimeException;
+use Throwable;
 
 /**
  * Runs the .sql files in database/migrations once each, in filename order.
@@ -54,6 +56,38 @@ final class Migrator
     public function pending(): array
     {
         return array_values(array_diff($this->available(), $this->applied()));
+    }
+
+    /**
+     * Migrations on disk that this database has not run.
+     *
+     * Read on every admin page load to warn that an update is waiting, so it
+     * deliberately asks nothing of the database beyond one SELECT: no table
+     * creation, and any failure at all means "nothing to report" rather than a
+     * broken page.
+     *
+     * @return array<int,string>
+     */
+    public static function outstanding(): array
+    {
+        static $pending = null;
+        if (is_array($pending)) {
+            return $pending;
+        }
+
+        try {
+            $migrator = new self(App::basePath('database/migrations'));
+            $applied = array_map(
+                static fn (array $row): string => (string) $row['migration'],
+                Db::select('SELECT `migration` FROM {{migrations}}')
+            );
+
+            $pending = array_values(array_diff($migrator->available(), $applied));
+        } catch (Throwable) {
+            $pending = [];
+        }
+
+        return $pending;
     }
 
     /**

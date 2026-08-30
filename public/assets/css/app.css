@@ -1031,6 +1031,10 @@ a:hover { text-decoration: underline; }
 
 .flash .icon { color: var(--ink-muted); margin-top: 1px; }
 
+/* A migration command is a long absolute path; let it wrap rather than
+   stretch the page sideways. */
+.flash code { word-break: break-all; }
+
 /* ── Empty states ───────────────────────────────────────────────────── */
 
 .empty {

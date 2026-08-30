@@ -12,6 +12,10 @@ final class Monitors
 {
     public const TYPES = ['http', 'keyword', 'endpoint', 'api', 'ping', 'port', 'ssl', 'domain', 'dns'];
 
+    /**
+     * @deprecated Read available() instead — it also knows what the database
+     *             in front of it can actually store.
+     */
     public const AVAILABLE_TYPES = self::TYPES;
 
     public const INTERVALS = [30, 60, 120, 300, 600, 1800, 3600, 21600, 43200, 86400];
@@ -311,6 +315,46 @@ final class Monitors
             'dns' => 'DNS',
             default => ucfirst($type),
         };
+    }
+
+    /**
+     * The types this installation can actually save.
+     *
+     * A pending migration leaves the type column behind the code, and the
+     * failure would otherwise land as a database error at the moment someone
+     * presses Create. So the column is asked what it accepts, and the form
+     * offers nothing it would refuse.
+     *
+     * Any trouble reading the schema means "all of them" — a broken check here
+     * must never take working monitor types away.
+     *
+     * @return array<int,string>
+     */
+    public static function available(): array
+    {
+        static $types = null;
+        if (is_array($types)) {
+            return $types;
+        }
+
+        try {
+            $column = Db::value(
+                'SELECT `COLUMN_TYPE` FROM `information_schema`.`COLUMNS`
+                 WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = ? AND `COLUMN_NAME` = \'type\'',
+                [Db::prefix() . 'monitors']
+            );
+
+            if (!is_string($column) || preg_match_all("/'([^']+)'/", $column, $m) === 0) {
+                return $types = self::TYPES;
+            }
+
+            // Keep our own order, so the dropdown does not reshuffle itself.
+            $types = array_values(array_intersect(self::TYPES, $m[1]));
+        } catch (\Throwable) {
+            $types = self::TYPES;
+        }
+
+        return $types === [] ? (($types = self::TYPES)) : $types;
     }
 
     /**

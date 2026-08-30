@@ -133,6 +133,29 @@ $isActive = static function (string $match) use ($currentPath): bool {
         </header>
 
         <main class="page">
+            <?php
+            // A migration that has not run makes newer features fail at the
+            // point of saving, with a database error rather than an
+            // explanation. Say so up front, and only to someone who can fix it.
+            $pendingMigrations = can('settings.manage') ? \App\Install\Migrator::outstanding() : [];
+            ?>
+            <?php if ($pendingMigrations !== []): ?>
+                <div class="flashes">
+                    <div class="flash flash--warning" role="status">
+                        <?= icon('alert') ?>
+                        <span>
+                            <strong>A database update is waiting.</strong>
+                            <?= count($pendingMigrations) === 1
+                                ? 'One migration has not run yet. Until it does,'
+                                : count($pendingMigrations) . ' migrations have not run yet. Until they do,' ?>
+                            anything they add — the newer monitor types among them — cannot be saved.
+                            Run this on the server, as the user that owns the site:
+                            <code><?= e('php ' . \App\Core\App::basePath('bin/migrate.php')) ?></code>
+                        </span>
+                    </div>
+                </div>
+            <?php endif; ?>
+
             <?php if ($flash !== []): ?>
                 <div class="flashes">
                     <?php foreach ($flash as $message): ?>

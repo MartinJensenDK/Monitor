@@ -255,7 +255,7 @@ final class MonitorsController extends Controller
             ->required('name', 'Name')
             ->maxLength('name', 'Name', 120)
             ->required('target', self::targetLabel($type))
-            ->in('type', 'Type', Monitors::AVAILABLE_TYPES)
+            ->custom('type', in_array($type, Monitors::available(), true), self::typeRefusal($type))
             ->between('interval_seconds', 'Interval', 30, 86400)
             ->between('timeout_seconds', 'Timeout', 1, 120)
             ->between('retries', 'Retries', 0, 5)
@@ -504,6 +504,22 @@ final class MonitorsController extends Controller
         }
 
         return $config;
+    }
+
+    /**
+     * Why a type was refused. Almost always a migration that has not run — a
+     * message the person can act on beats "not one of the allowed values".
+     */
+    private static function typeRefusal(string $type): string
+    {
+        if (!in_array($type, Monitors::TYPES, true)) {
+            return 'That is not a kind of monitor this version knows about.';
+        }
+
+        return sprintf(
+            '%s monitors need a database update that has not run on this server yet. Run php bin/migrate.php, then try again.',
+            Monitors::typeLabel($type)
+        );
     }
 
     /** What the shared target field holds for a given type. */

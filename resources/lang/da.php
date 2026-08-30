@@ -96,6 +96,7 @@ return [
     'monitor.type_domain' => 'Domæne',
     'monitor.type_dns' => 'DNS',
     'monitor.expiry' => 'Udløber om',
+    'monitor.needs_migration' => 'Afventer en database-opdatering',
     'monitor.coming_soon' => 'Kommer i næste version',
 
     'incident.started' => 'Startede',

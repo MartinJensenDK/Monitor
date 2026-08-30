@@ -103,6 +103,7 @@ return [
     'monitor.type_domain' => 'Domain',
     'monitor.type_dns' => 'DNS',
     'monitor.expiry' => 'Expires in',
+    'monitor.needs_migration' => 'Waiting on a database update',
     'monitor.coming_soon' => 'Arrives in the next release',
 
     // Incidents
