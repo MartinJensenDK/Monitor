@@ -1420,6 +1420,52 @@ code {
     .assertion > *:nth-child(4) { grid-area: remove; }
 }
 
+/* A capture is a name and a path — no operator between them. */
+.assertion--capture {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) 32px;
+}
+
+@media (max-width: 720px) {
+    .assertion--capture {
+        grid-template-columns: minmax(0, 1fr) 32px;
+        grid-template-areas:
+            "path remove"
+            "value value";
+    }
+
+    .assertion--capture > *:nth-child(1) { grid-area: path; }
+    .assertion--capture > *:nth-child(2) { grid-area: value; }
+    .assertion--capture > *:nth-child(3) { grid-area: remove; }
+}
+
+/* ── Steps of an API check ──────────────────────────────────────────── */
+
+.step {
+    /* Numbered because the order is the point: each step runs after the last. */
+    background: var(--panel-2);
+}
+
+.step > legend {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.step > legend .btn--icon {
+    /* Sits on the legend rule, so it needs the panel behind it. */
+    background: var(--panel-2);
+}
+
+.step .rows {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+}
+
+.step .rows .field__label {
+    margin: 0 0 8px;
+}
+
 /* ── Notification log rows ──────────────────────────────────────────── */
 
 .log-status {

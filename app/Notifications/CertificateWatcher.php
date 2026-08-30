@@ -17,7 +17,7 @@ use App\Core\Db;
 final class CertificateWatcher
 {
     /** Nothing further out than this is worth looking at. */
-    private const HORIZON_DAYS = 60;
+    private const HORIZON_DAYS = 90;
 
     /** @return int number of monitors that triggered a reminder */
     public static function run(): int

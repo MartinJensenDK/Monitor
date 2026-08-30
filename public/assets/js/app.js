@@ -97,8 +97,36 @@
             label: 'Host',
             placeholder: 'db.example.com',
             hint: 'The host to connect to. The port goes in the field next to it.'
+        },
+        keyword: {
+            label: 'URL',
+            placeholder: 'https://example.com/pricing',
+            hint: 'The page whose wording is checked.'
+        },
+        api: {
+            label: 'Base URL',
+            placeholder: 'https://api.example.com',
+            hint: 'Every step below is called against this address.'
+        },
+        ssl: {
+            label: 'Host',
+            placeholder: 'example.com',
+            hint: 'The host whose certificate is read. No http:// in front of it.'
+        },
+        domain: {
+            label: 'Domain',
+            placeholder: 'example.com',
+            hint: 'The registered domain, without a subdomain in front of it.'
+        },
+        dns: {
+            label: 'Name',
+            placeholder: 'example.com',
+            hint: 'The name to look up. Subdomains and names like _dmarc.example.com are fine.'
         }
     };
+
+    // Mirrors Monitors::minimumInterval(); the server enforces it either way.
+    var MIN_INTERVALS = { domain: 3600 };
 
     var typeSelect = document.querySelector('[data-type-select]');
     if (typeSelect) {
@@ -118,38 +146,133 @@
             if (label) label.textContent = copy.label;
             if (hint) hint.textContent = copy.hint;
             if (input) input.placeholder = copy.placeholder;
+
+            syncInterval(type);
+        };
+
+        // A registry lookup every 30 seconds would be rude and would tell you
+        // nothing new, so the short intervals are closed off for those types.
+        var intervalSelect = document.querySelector('[data-interval-select]');
+        var syncInterval = function (type) {
+            if (!intervalSelect) return;
+
+            var minimum = MIN_INTERVALS[type] || 0;
+            var current = parseInt(intervalSelect.value, 10) || 0;
+
+            Array.prototype.forEach.call(intervalSelect.options, function (option) {
+                option.disabled = parseInt(option.value, 10) < minimum;
+            });
+
+            if (current < minimum) {
+                for (var i = 0; i < intervalSelect.options.length; i++) {
+                    if (!intervalSelect.options[i].disabled) {
+                        intervalSelect.selectedIndex = i;
+                        break;
+                    }
+                }
+            }
         };
         typeSelect.addEventListener('change', syncType);
         syncType();
     }
 
-    // Assertion rows on the endpoint form.
-    var assertionList = document.querySelector('[data-assertions]');
-    if (assertionList) {
-        document.querySelectorAll('[data-add-assertion]').forEach(function (button) {
-            button.addEventListener('click', function () {
-                var template = assertionList.querySelector('[data-assertion-row]');
-                if (!template) return;
-
-                var row = template.cloneNode(true);
-                row.querySelectorAll('input').forEach(function (input) { input.value = ''; });
-                row.querySelectorAll('select').forEach(function (select) { select.selectedIndex = 0; });
-                assertionList.appendChild(row);
-                var first = row.querySelector('input');
-                if (first) first.focus();
-            });
-        });
-
-        assertionList.addEventListener('click', function (event) {
-            if (!event.target.closest('[data-remove-assertion]')) return;
-
-            var rows = assertionList.querySelectorAll('[data-assertion-row]');
-            var row = event.target.closest('[data-assertion-row]');
-            if (rows.length > 1) {
-                row.remove();
+    // Repeatable rows: endpoint assertions, and the assertions and captures
+    // inside each step of an API check. One handler for all of them — a row is
+    // cloned from the last one in its own list, so the names stay right.
+    function emptyRow(row) {
+        row.querySelectorAll('input, textarea').forEach(function (field) {
+            if (field.type === 'checkbox' || field.type === 'radio') {
+                field.checked = false;
             } else {
-                row.querySelectorAll('input').forEach(function (input) { input.value = ''; });
+                field.value = '';
             }
+        });
+        row.querySelectorAll('select').forEach(function (select) { select.selectedIndex = 0; });
+    }
+
+    document.addEventListener('click', function (event) {
+        var add = event.target.closest('[data-add-row]');
+        if (add) {
+            var group = add.closest('[data-rows-group]');
+            var list = group && group.querySelector('[data-rows]');
+            if (!list) return;
+
+            var rows = list.querySelectorAll('[data-row]');
+            var last = rows[rows.length - 1];
+            if (!last) return;
+
+            var row = last.cloneNode(true);
+            emptyRow(row);
+            list.appendChild(row);
+
+            var first = row.querySelector('input, textarea');
+            if (first) first.focus();
+            return;
+        }
+
+        var remove = event.target.closest('[data-remove-row]');
+        if (!remove) return;
+
+        var owner = remove.closest('[data-rows]');
+        var target = remove.closest('[data-row]');
+        if (!owner || !target) return;
+
+        if (owner.querySelectorAll('[data-row]').length > 1) {
+            target.remove();
+        } else {
+            emptyRow(target);
+        }
+    });
+
+    // Steps of an API check. A step cannot be cloned like a row: its fields are
+    // named step[3][path], so a new one is stamped out of a template with the
+    // next free index written into it.
+    var stepList = document.querySelector('[data-api-steps]');
+    if (stepList) {
+        var stepTemplate = document.querySelector('[data-step-template]');
+        var nextStepIndex = stepList.querySelectorAll('[data-api-step]').length;
+
+        var numberSteps = function () {
+            var steps = stepList.querySelectorAll('[data-api-step]');
+            steps.forEach(function (step, index) {
+                var label = step.querySelector('[data-step-number]');
+                if (label) label.textContent = 'Step ' + (index + 1);
+
+                // The last step standing keeps its fields; it just cannot go.
+                var remove = step.querySelector('[data-remove-step]');
+                if (remove) remove.hidden = steps.length < 2;
+            });
+        };
+
+        numberSteps();
+
+        document.addEventListener('click', function (event) {
+            if (event.target.closest('[data-add-step]')) {
+                if (!stepTemplate) return;
+                if (stepList.querySelectorAll('[data-api-step]').length >= 8) return;
+
+                var holder = document.createElement('div');
+                holder.innerHTML = stepTemplate.innerHTML.replace(/__i__/g, String(nextStepIndex++));
+
+                var step = holder.querySelector('[data-api-step]');
+                if (!step) return;
+
+                stepList.appendChild(step);
+                numberSteps();
+
+                var first = step.querySelector('input');
+                if (first) first.focus();
+                return;
+            }
+
+            var removeStep = event.target.closest('[data-remove-step]');
+            if (!removeStep) return;
+
+            var step = removeStep.closest('[data-api-step]');
+            if (!step || stepList.querySelectorAll('[data-api-step]').length < 2) return;
+
+            step.remove();
+            numberSteps();
         });
     }
 

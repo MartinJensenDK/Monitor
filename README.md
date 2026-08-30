@@ -10,25 +10,37 @@ folder, open the site, answer four questions, add one cron line.
 
 ## What it does today
 
-**Four kinds of check**
+**Nine kinds of check**
 
 | Type | Watches | Says it is down when |
 |---|---|---|
 | **Website** | A page over HTTP | The status code falls outside the expected range, a keyword is missing (or present), the TLS handshake fails, or it times out |
-| **Endpoint** | A JSON API | Any of your assertions about the response body does not hold — `queue.depth` under 100, `status` equal to `ok`, `items.0.state` present |
+| **Keyword** | The wording on a page | The words you named are missing — or, the other way round, an error phrase has appeared. Several at once, matched on the visible text rather than the markup |
+| **Endpoint** | A JSON API, one call | Any of your assertions about the response body does not hold — `queue.depth` under 100, `status` equal to `ok`, `items.0.state` present |
+| **API** | A JSON API, several calls | Any step in the sequence fails. Sign in, capture the token, call the endpoint it unlocks — the failure names the step |
 | **Ping** | A host answering | No ICMP echo comes back. Where the server may not send ICMP, it times a TCP connect instead and says so rather than pretending |
 | **Port** | A service listening | Nothing accepts the connection, or the greeting it sends is not the one you expected |
+| **SSL certificate** | A certificate and its clock | It has expired, the chain is not trusted, it does not cover the host, the issuer changed, or it runs out sooner than you allow |
+| **Domain** | A registration | The registry has no record of it, it is on hold, it changed registrar or nameservers, or it expires sooner than you allow |
+| **DNS** | A record | The name does not resolve, the record is gone, it no longer holds what you published, or two resolvers disagree about it |
 
-All four share the same settings: interval, timeout, retries before an incident
+All nine share the same settings: interval, timeout, retries before an incident
 opens, and a response-time threshold that marks a monitor *degraded* rather than
-down. Website and endpoint checks also record TLS certificate expiry.
+down.
+
+Three of them count down to an expiry rather than only reporting the moment
+things break. A certificate or a registration that runs low turns the monitor
+**amber** first and **down** only at the second threshold, so the alert arrives
+while there is still time to renew. See
+[docs/MONITOR-TYPES.md](docs/MONITOR-TYPES.md) for what each type asks for and
+what it reports back.
 
 **Everything around them**
 
 - **Email notifications** — SMTP or local sendmail, configured in the interface
   with a test button that reports what the mail server actually said. Per monitor
-  and per channel you choose the events (down, recovery, slow, certificate
-  expiring), how many consecutive failures to wait for, whether to repeat while an
+  and per channel you choose the events (down, recovery, slow, expiring
+  certificate or registration), how many consecutive failures to wait for, whether to repeat while an
   incident is open, and hours to stay quiet. Every send — and every deliberate
   skip — is logged, so "why didn't I get an email?" has an answer.
 - **Live dashboard** — the page updates every five seconds without reloading.
@@ -108,7 +120,8 @@ MySQL advisory lock keeps two runs from overlapping.
 app/Core/        router, PDO wrapper, views, sessions, auth, roles
 app/Domain/      monitors, incidents, groups, stats, settings — and MonitorScope,
                  the single place that decides which monitors a user may see
-app/Checks/      one class per monitor type
+app/Checks/      one class per monitor type, plus the protocol clients they
+                 use — a DNS resolver, a TLS inspector, an RDAP/WHOIS reader
 app/Scheduler/   the runner, the rollups, retention
 app/Install/     shared by the browser wizard and bin/install.php
 public/          the only folder the web server needs

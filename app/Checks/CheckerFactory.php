@@ -12,8 +12,13 @@ final class CheckerFactory
     private const CHECKERS = [
         'http' => HttpChecker::class,
         'endpoint' => EndpointChecker::class,
+        'keyword' => KeywordChecker::class,
+        'api' => ApiChecker::class,
         'ping' => PingChecker::class,
         'port' => PortChecker::class,
+        'ssl' => SslChecker::class,
+        'domain' => DomainChecker::class,
+        'dns' => DnsChecker::class,
     ];
 
     public static function for(string $type): CheckerInterface

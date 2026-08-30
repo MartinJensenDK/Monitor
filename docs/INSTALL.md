@@ -222,6 +222,32 @@ re-checks once a day and switches over on its own — no restart, no setting.
 
 ---
 
+## What the checks need to reach
+
+The scheduler runs from the web server, so whatever the firewall allows *it* to
+do is what your monitors can do. Beyond ordinary outbound HTTP and HTTPS:
+
+| Monitor type | Needs |
+|---|---|
+| Domain | Outbound **HTTPS** to the RDAP service (`rdap.org` by default, which redirects to the registry), and outbound **TCP port 43** for the WHOIS fallback used by registries with no RDAP — `.dk` among them |
+| DNS | Outbound **UDP port 53** to each resolver you name, and **TCP port 53** for answers too large for a datagram |
+| SSL certificate | Outbound TCP to whichever port you point it at — 443, 993, 587, 5432 |
+| Ping, Port | See the ICMP note above; the port check needs outbound TCP to that port |
+
+If a domain monitor reports that the RDAP service could not be reached, and the
+WHOIS fallback times out too, outbound port 43 is usually the reason.
+
+The RDAP service can be changed for one that suits you better — a registry's own
+endpoint, or an internal mirror. Add `rdap_url` to the settings table with
+`{domain}` where the name belongs:
+
+```sql
+INSERT INTO `settings` (`key`, `value`, `updated_at`)
+VALUES ('rdap_url', 'https://rdap.example.net/domain/{domain}', UTC_TIMESTAMP());
+```
+
+---
+
 ## Where the database password lives
 
 `.env` in the project root:

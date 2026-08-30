@@ -46,6 +46,10 @@ final class Icons
         'dots' => '<circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none"/>',
         'arrow-left' => '<path d="M20 12H4"/><path d="m10 6-6 6 6 6"/>',
         'eye' => '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="2.6"/>',
+        'quote' => '<path d="M9 6C6.2 7.4 4.5 9.8 4.5 13v5h6v-6H8c0-2 .5-3.4 2-4.4Z"/><path d="M19 6c-2.8 1.4-4.5 3.8-4.5 7v5h6v-6H18c0-2 .5-3.4 2-4.4Z"/>',
+        'steps' => '<path d="M3 19h4v-4h5v-4h5V7h4"/><circle cx="7" cy="19" r="1.6"/><circle cx="12" cy="15" r="1.6"/><circle cx="17" cy="11" r="1.6"/>',
+        'registry' => '<ellipse cx="12" cy="6" rx="7.5" ry="3"/><path d="M4.5 6v12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6"/><path d="M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3"/>',
+        'signpost' => '<path d="M12 3v18"/><path d="M12 6h6l2.5 2.5L18 11h-6"/><path d="M12 13H6l-2.5 2.5L6 18h6"/>',
     ];
 
     public static function svg(string $name, string $class = 'icon'): string
@@ -61,9 +65,14 @@ final class Icons
     {
         return match ($type) {
             'http' => 'globe',
+            'keyword' => 'quote',
             'endpoint' => 'braces',
+            'api' => 'steps',
             'ping' => 'radio',
             'port' => 'plug',
+            'ssl' => 'certificate',
+            'domain' => 'registry',
+            'dns' => 'signpost',
             default => 'globe',
         };
     }

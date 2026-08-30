@@ -94,9 +94,15 @@ return [
     'monitor.history' => 'Daily uptime, 30 days',
     'monitor.no_access' => 'No group has access yet',
     'monitor.type_http' => 'Website',
+    'monitor.type_keyword' => 'Keyword',
     'monitor.type_endpoint' => 'Endpoint',
+    'monitor.type_api' => 'API',
     'monitor.type_ping' => 'Ping',
     'monitor.type_port' => 'Port',
+    'monitor.type_ssl' => 'SSL certificate',
+    'monitor.type_domain' => 'Domain',
+    'monitor.type_dns' => 'DNS',
+    'monitor.expiry' => 'Expires in',
     'monitor.coming_soon' => 'Arrives in the next release',
 
     // Incidents

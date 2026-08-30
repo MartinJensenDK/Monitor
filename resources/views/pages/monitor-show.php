@@ -19,8 +19,12 @@
  * @var string $pingTransport
  */
 
+use App\Checks\ApiChecker;
+use App\Checks\DnsChecker;
 use App\Checks\EndpointChecker;
+use App\Checks\KeywordChecker;
 use App\Checks\PingTransport;
+use App\Checks\SslChecker;
 use App\Domain\Monitors;
 use App\Domain\Stats;
 use App\Support\Icons;
@@ -28,6 +32,20 @@ use App\Support\Tape;
 
 $id = (int) $monitor['id'];
 $status = (string) ($monitor['status'] ?? 'pending');
+
+$type = (string) $monitor['type'];
+
+// http, keyword, endpoint and api all hold a URL worth clicking through to.
+$linkedTypes = ['http', 'keyword', 'endpoint', 'api'];
+
+// The expiry column carries a certificate for an SSL monitor and a
+// registration for a domain monitor, so it is worded from the type.
+$expiryLabel = Monitors::expiryLabel($type);
+$expiryHorizon = $type === 'domain' ? 365 : 90;
+
+// A ping or a DNS lookup never meets a certificate, so the tile would sit
+// there reading "—" forever. Only the types that can fill it get it.
+$hasExpiry = in_array($type, ['http', 'keyword', 'endpoint', 'ssl', 'domain'], true);
 
 $certDays = null;
 if (!empty($monitor['cert_expires_at'])) {
@@ -45,13 +63,21 @@ $circumference = 2 * M_PI * 34;
             <span class="row__type"><?= icon(Icons::forMonitorType((string) $monitor['type'])) ?></span>
             <div style="min-width:0;">
                 <p class="eyebrow"><?= e(Monitors::typeLabel((string) $monitor['type'])) ?> · checked every <?= e(format_duration((int) $monitor['interval_seconds'])) ?></p>
-                <?php if (in_array((string) $monitor['type'], ['http', 'endpoint'], true)): ?>
+                <?php if (in_array($type, $linkedTypes, true)): ?>
                     <a class="row__target" href="<?= e((string) $monitor['target']) ?>" rel="noreferrer noopener" target="_blank">
                         <?= e((string) $monitor['target']) ?> <?= icon('external', 'icon') ?>
                     </a>
                 <?php else: ?>
                     <span class="row__target">
-                        <?= e((string) $monitor['target']) ?><?= (string) $monitor['type'] === 'port' ? ':' . (int) ($config['port'] ?? 0) : '' ?>
+                        <?= e((string) $monitor['target']) ?><?php
+                        if ($type === 'port') {
+                            echo ':' . (int) ($config['port'] ?? 0);
+                        } elseif ($type === 'ssl') {
+                            echo ':' . SslChecker::port($monitor);
+                        } elseif ($type === 'dns') {
+                            echo ' · ' . e(DnsChecker::recordType($config)) . ' record';
+                        }
+                        ?>
                     </span>
                 <?php endif; ?>
             </div>
@@ -128,22 +154,26 @@ $circumference = 2 * M_PI * 34;
             </p>
         </div>
 
+        <?php if ($hasExpiry): ?>
         <div class="stat">
-            <p class="eyebrow"><?= e(t('monitor.certificate')) ?></p>
+            <p class="eyebrow"><?= e($expiryLabel) ?></p>
             <?php if ($certDays === null): ?>
                 <p class="stat__value">—</p>
-                <p class="stat__foot">No TLS certificate seen yet.</p>
+                <p class="stat__foot">
+                    <?= $type === 'domain' ? 'No registration read yet.' : 'No TLS certificate seen yet.' ?>
+                </p>
             <?php else: ?>
                 <p class="stat__value <?= $certDays < 7 ? 'stat__value--down' : ($certDays < 21 ? 'stat__value--warn' : '') ?>">
                     <?= (int) $certDays ?><span class="stat__unit">days</span>
                 </p>
                 <div class="meter" title="<?= e((string) $monitor['cert_expires_at']) ?> UTC">
                     <div class="meter__fill <?= $certDays < 7 ? 'meter__fill--down' : ($certDays < 21 ? 'meter__fill--warn' : '') ?>"
-                         style="width: <?= max(3, min(100, (int) round($certDays / 90 * 100))) ?>%"></div>
+                         style="width: <?= max(3, min(100, (int) round($certDays / $expiryHorizon * 100))) ?>%"></div>
                 </div>
                 <p class="stat__foot"><?= e((string) ($monitor['cert_issuer'] ?? '')) ?></p>
             <?php endif; ?>
         </div>
+        <?php endif; ?>
 
         <div class="stat">
             <p class="eyebrow">Availability, 30 days</p>
@@ -218,7 +248,7 @@ $circumference = 2 * M_PI * 34;
                     <dt><?= e(t('monitor.retries')) ?></dt>
                     <dd class="num"><?= (int) $monitor['retries'] ?></dd>
 
-                    <?php if (in_array((string) $monitor['type'], ['http', 'endpoint'], true)): ?>
+                    <?php if (in_array($type, ['http', 'keyword', 'endpoint'], true)): ?>
                         <dt>Method</dt>
                         <dd class="num"><?= e((string) ($config['method'] ?? 'GET')) ?></dd>
 
@@ -234,7 +264,7 @@ $circumference = 2 * M_PI * 34;
                         <?php endif; ?>
                     <?php endif; ?>
 
-                    <?php if ((string) $monitor['type'] === 'endpoint' && !empty($config['assertions'])): ?>
+                    <?php if ($type === 'endpoint' && !empty($config['assertions'])): ?>
                         <dt>Assertions</dt>
                         <dd>
                             <?php foreach ($config['assertions'] as $assertion): ?>
@@ -247,7 +277,103 @@ $circumference = 2 * M_PI * 34;
                         </dd>
                     <?php endif; ?>
 
-                    <?php if ((string) $monitor['type'] === 'port'): ?>
+                    <?php if ($type === 'keyword'): ?>
+                        <?php $keywords = KeywordChecker::keywords($config); ?>
+                        <dt>Looking for</dt>
+                        <dd>
+                            <?php foreach ($keywords as $keyword): ?>
+                                <div><?= e($keyword) ?></div>
+                            <?php endforeach; ?>
+                            <span class="muted">
+                                <?= e(KeywordChecker::MODES[$config['keyword_mode'] ?? 'all'] ?? '') ?><?php
+                                    echo !empty($config['case_sensitive']) ? ', case sensitive' : '';
+                                ?>
+                            </span>
+                        </dd>
+                    <?php endif; ?>
+
+                    <?php if ($type === 'api'): ?>
+                        <?php $apiSteps = ApiChecker::steps($config); ?>
+                        <dt>Steps</dt>
+                        <dd>
+                            <?php foreach ($apiSteps as $stepIndex => $step): ?>
+                                <div class="num" style="font-size:12px;">
+                                    <?= $stepIndex + 1 ?>.
+                                    <?= e((string) ($step['method'] ?? 'GET')) ?>
+                                    <?= e((string) ($step['path'] ?? '')) ?>
+                                    <?php if (($step['name'] ?? '') !== ''): ?>
+                                        <span class="muted">— <?= e((string) $step['name']) ?></span>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endforeach; ?>
+                        </dd>
+                    <?php endif; ?>
+
+                    <?php if ($type === 'ssl'): ?>
+                        <dt>Port</dt>
+                        <dd class="num"><?= SslChecker::port($monitor) ?></dd>
+
+                        <dt>Warn / fail at</dt>
+                        <dd class="num">
+                            <?= (int) ($config['warn_days'] ?? SslChecker::DEFAULT_WARN_DAYS) ?> /
+                            <?= (int) ($config['critical_days'] ?? SslChecker::DEFAULT_CRITICAL_DAYS) ?> days
+                        </dd>
+
+                        <dt>Also checks</dt>
+                        <dd>
+                            <?php
+                            $ssl = [];
+                            if (!empty($config['verify_chain'])) { $ssl[] = 'the chain is trusted'; }
+                            if (!empty($config['check_hostname'])) { $ssl[] = 'the name is covered'; }
+                            if (!empty($config['expected_issuer'])) { $ssl[] = 'the issuer is ' . $config['expected_issuer']; }
+                            echo e($ssl === [] ? 'the expiry date only' : implode(', ', $ssl));
+                            ?>
+                        </dd>
+                    <?php endif; ?>
+
+                    <?php if ($type === 'domain'): ?>
+                        <dt>Warn / fail at</dt>
+                        <dd class="num">
+                            <?= (int) ($config['warn_days'] ?? 30) ?> /
+                            <?= (int) ($config['critical_days'] ?? 7) ?> days
+                        </dd>
+
+                        <?php if (!empty($config['expected_registrar'])): ?>
+                            <dt>Expected registrar</dt>
+                            <dd><?= e((string) $config['expected_registrar']) ?></dd>
+                        <?php endif; ?>
+
+                        <?php if (!empty($config['expected_nameservers'])): ?>
+                            <dt>Expected nameservers</dt>
+                            <dd>
+                                <?php foreach ((array) $config['expected_nameservers'] as $nameserver): ?>
+                                    <div class="num" style="font-size:12px;"><?= e((string) $nameserver) ?></div>
+                                <?php endforeach; ?>
+                            </dd>
+                        <?php endif; ?>
+                    <?php endif; ?>
+
+                    <?php if ($type === 'dns'): ?>
+                        <dt>Record type</dt>
+                        <dd class="num"><?= e(DnsChecker::recordType($config)) ?></dd>
+
+                        <dt>Asked of</dt>
+                        <dd class="num" style="font-size:12px;">
+                            <?= e(implode(', ', DnsChecker::resolvers($config))) ?>
+                        </dd>
+
+                        <?php if (DnsChecker::expected($config) !== []): ?>
+                            <dt>Expected</dt>
+                            <dd>
+                                <span class="muted"><?= e(DnsChecker::MODES[$config['dns_mode'] ?? 'contains'] ?? '') ?></span>
+                                <?php foreach (DnsChecker::expected($config) as $expectedRecord): ?>
+                                    <div class="num" style="font-size:12px;"><?= e($expectedRecord) ?></div>
+                                <?php endforeach; ?>
+                            </dd>
+                        <?php endif; ?>
+                    <?php endif; ?>
+
+                    <?php if ($type === 'port'): ?>
                         <dt>Port</dt>
                         <dd class="num"><?= (int) ($config['port'] ?? 0) ?></dd>
 
@@ -257,7 +383,7 @@ $circumference = 2 * M_PI * 34;
                         <?php endif; ?>
                     <?php endif; ?>
 
-                    <?php if ((string) $monitor['type'] === 'ping'): ?>
+                    <?php if ($type === 'ping'): ?>
                         <dt>Measured by</dt>
                         <dd>
                             <?= PingTransport::isIcmp($pingTransport) ? 'ICMP echo' : 'TCP connect' ?>

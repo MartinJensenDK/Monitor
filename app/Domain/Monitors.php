@@ -10,11 +10,19 @@ use App\Support\Str;
 
 final class Monitors
 {
-    public const TYPES = ['http', 'endpoint', 'ping', 'port'];
+    public const TYPES = ['http', 'keyword', 'endpoint', 'api', 'ping', 'port', 'ssl', 'domain', 'dns'];
 
-    public const AVAILABLE_TYPES = ['http', 'endpoint', 'ping', 'port'];
+    public const AVAILABLE_TYPES = self::TYPES;
 
-    public const INTERVALS = [30, 60, 120, 300, 600, 1800, 3600];
+    public const INTERVALS = [30, 60, 120, 300, 600, 1800, 3600, 21600, 43200, 86400];
+
+    /**
+     * Types that read from a registry rather than from the host, where a check
+     * every minute would be rude and would tell you nothing new.
+     */
+    public const SLOW_TYPES = ['domain'];
+
+    public const SLOW_MIN_INTERVAL = 3600;
 
     /**
      * Monitors the signed-in user may see, with their live status attached.
@@ -293,11 +301,34 @@ final class Monitors
     {
         return match ($type) {
             'http' => 'Website',
+            'keyword' => 'Keyword',
             'endpoint' => 'Endpoint',
+            'api' => 'API',
             'ping' => 'Ping',
             'port' => 'Port',
+            'ssl' => 'SSL certificate',
+            'domain' => 'Domain',
+            'dns' => 'DNS',
             default => ucfirst($type),
         };
+    }
+
+    /**
+     * What the expiry date on a monitor is the expiry of.
+     *
+     * SSL and domain monitors both store their countdown in
+     * monitor_status.cert_expires_at, so the column is read through this to
+     * keep a domain from being described as a certificate.
+     */
+    public static function expiryLabel(string $type): string
+    {
+        return $type === 'domain' ? 'Domain registration' : 'TLS certificate';
+    }
+
+    /** The lowest interval that makes sense for a type, in seconds. */
+    public static function minimumInterval(string $type): int
+    {
+        return in_array($type, self::SLOW_TYPES, true) ? self::SLOW_MIN_INTERVAL : 30;
     }
 
     /** @return array<string,int> counts by status for the visible set */

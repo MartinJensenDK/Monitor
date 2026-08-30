@@ -110,16 +110,22 @@ final class EmailTemplate
         $name = (string) $monitor['name'];
         $when = $days <= 0 ? 'has expired' : sprintf('expires in %d day%s', $days, $days === 1 ? '' : 's');
 
+        // A domain monitor stores its registration date in the same column, so
+        // the reminder has to be worded from the monitor's type.
+        $isDomain = (string) ($monitor['type'] ?? '') === 'domain';
+
         return self::render(
             'cert',
-            'TLS certificate for ' . $name . ' ' . $when,
-            'Certificate',
-            sprintf('The certificate served by %s %s. Renew it before it lapses.', (string) $monitor['target'], $when),
+            ($isDomain ? 'Domain registration for ' : 'TLS certificate for ') . $name . ' ' . $when,
+            $isDomain ? 'Domain' : 'Certificate',
+            $isDomain
+                ? sprintf('The registration of %s %s. Renew it before it lapses.', (string) $monitor['target'], $when)
+                : sprintf('The certificate served by %s %s. Renew it before it lapses.', (string) $monitor['target'], $when),
             [
                 'Monitor' => $name,
                 'Target' => (string) $monitor['target'],
                 'Expires' => $expiresAt . ' UTC',
-                'Issuer' => (string) ($monitor['cert_issuer'] ?? '—'),
+                ($isDomain ? 'Registrar' : 'Issuer') => (string) ($monitor['cert_issuer'] ?? '—'),
             ],
             self::monitorUrl($monitor),
             'Open the monitor'

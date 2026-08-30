@@ -17,9 +17,15 @@ use App\Domain\Incidents;
 use App\Domain\Monitors;
 use App\Domain\Stats;
 use App\Scheduler\Runner;
-use App\Checks\EndpointChecker;
+use App\Checks\ApiChecker;
+use App\Checks\Assertions;
+use App\Checks\DnsResolver;
+use App\Checks\DomainChecker;
+use App\Checks\DomainRegistry;
+use App\Checks\KeywordChecker;
 use App\Checks\PingTransport;
 use App\Checks\PingChecker;
+use App\Checks\SslChecker;
 use App\Notifications\Channels;
 use App\Support\Crypto;
 
@@ -243,20 +249,33 @@ final class MonitorsController extends Controller
             ));
         }
 
-        $isWeb = in_array($type, ['http', 'endpoint'], true);
+        $shape = self::targetShape($type);
 
         $validator = Validator::make($request->all())
             ->required('name', 'Name')
             ->maxLength('name', 'Name', 120)
-            ->required('target', $isWeb ? 'URL' : 'Host')
+            ->required('target', self::targetLabel($type))
             ->in('type', 'Type', Monitors::AVAILABLE_TYPES)
             ->between('interval_seconds', 'Interval', 30, 86400)
             ->between('timeout_seconds', 'Timeout', 1, 120)
             ->between('retries', 'Retries', 0, 5)
             ->custom('group_access', $groups !== [], 'Share the monitor with at least one group, otherwise nobody can see it.');
 
-        if ($isWeb) {
+        if ($shape === 'url') {
             $validator->url('target', 'URL');
+        } elseif ($shape === 'domain') {
+            $validator->custom(
+                'target',
+                $target === '' || preg_match('/^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/', DomainRegistry::normalise($target)) === 1,
+                'Enter a registrable domain, such as example.com, without http:// in front of it.'
+            );
+        } elseif ($shape === 'dns') {
+            // DNS names legitimately carry underscores and a leading wildcard.
+            $validator->custom(
+                'target',
+                $target === '' || preg_match('/^[A-Za-z0-9._*-]+$/', $target) === 1,
+                'Enter the name to look up, such as example.com or _dmarc.example.com.'
+            );
         } else {
             $validator->custom(
                 'target',
@@ -275,12 +294,86 @@ final class MonitorsController extends Controller
             $validator->custom('fallback_port', $fallback >= 1 && $fallback <= 65535, 'The fallback port must be between 1 and 65535.');
         }
 
+        if ($type === 'ssl') {
+            $port = $request->int('ssl_port', SslChecker::DEFAULT_PORT);
+            $validator
+                ->custom('ssl_port', $port >= 1 && $port <= 65535, 'The TLS port must be between 1 and 65535.')
+                ->custom(
+                    'warn_days',
+                    $request->int('warn_days', SslChecker::DEFAULT_WARN_DAYS) >= $request->int('critical_days', SslChecker::DEFAULT_CRITICAL_DAYS),
+                    'The warning must come at least as early as the failure, so give it the larger number of days.'
+                );
+        }
+
+        if ($type === 'domain') {
+            $validator->custom(
+                'interval_seconds',
+                $request->int('interval_seconds', 60) >= Monitors::SLOW_MIN_INTERVAL,
+                'Registries rate-limit lookups. Check a domain once an hour at most.'
+            )->custom(
+                'warn_days',
+                $request->int('warn_days', DomainChecker::DEFAULT_WARN_DAYS) >= $request->int('critical_days', DomainChecker::DEFAULT_CRITICAL_DAYS),
+                'The warning must come at least as early as the failure, so give it the larger number of days.'
+            );
+        }
+
+        if ($type === 'dns') {
+            $validator->in('record_type', 'Record type', array_keys(DnsResolver::TYPES));
+
+            foreach ($this->lines((string) $request->input('resolvers', '')) as $resolver) {
+                $validator->custom(
+                    'resolvers',
+                    DnsResolver::isValidServer($resolver),
+                    sprintf('"%s" is not an IP address. Name resolvers by address, such as 1.1.1.1.', $resolver)
+                );
+            }
+        }
+
+        if ($type === 'keyword') {
+            $validator->custom(
+                'keywords',
+                $this->lines((string) $request->input('keywords', '')) !== [],
+                'Give the check at least one word or phrase to look for.'
+            )->in('keyword_mode', 'Match', array_keys(KeywordChecker::MODES));
+        }
+
+        $steps = $this->parseSteps($request);
+        if ($type === 'api') {
+            $validator->custom('steps', $steps !== [], 'An API check needs at least one request. Add a step.');
+
+            foreach ($steps as $index => $step) {
+                $number = $index + 1;
+
+                $validator->custom(
+                    'steps',
+                    trim((string) $step['path']) !== '',
+                    'Step ' . $number . ' has no path or URL to call.'
+                );
+
+                foreach ($step['assertions'] as $assertion) {
+                    $validator->custom(
+                        'steps',
+                        Assertions::exists($assertion['operator']),
+                        'Step ' . $number . ' uses an operator that does not exist.'
+                    );
+                }
+
+                foreach ($step['captures'] as $capture) {
+                    $validator->custom(
+                        'steps',
+                        preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $capture['name']) === 1,
+                        sprintf('Step %d captures into "%s". Use letters, digits and underscores so it can be written as {{%s}}.', $number, $capture['name'], $capture['name'])
+                    );
+                }
+            }
+        }
+
         $assertions = $this->parseAssertions($request);
         if ($type === 'endpoint') {
             foreach ($assertions as $index => $assertion) {
                 $validator->custom(
                     'assertions',
-                    in_array($assertion['operator'], array_keys(EndpointChecker::OPERATORS), true),
+                    Assertions::exists($assertion['operator']),
                     'Assertion ' . ($index + 1) . ' uses an operator that does not exist.'
                 );
             }
@@ -312,7 +405,7 @@ final class MonitorsController extends Controller
                 'retries' => $request->int('retries', 2),
                 'degraded_ms' => $request->int('degraded_ms', 0) > 0 ? $request->int('degraded_ms', 0) : null,
                 'tags' => (string) $request->input('tags', '') ?: null,
-                'config' => $this->configFor($type, $request, $assertions),
+                'config' => $this->configFor($type, $request, $assertions, $steps),
             ],
             'groups' => $groups,
             'rules' => $this->parseRules($request),
@@ -326,7 +419,7 @@ final class MonitorsController extends Controller
      * @param array<int,array{path:string,operator:string,value:string}> $assertions
      * @return array<string,mixed>
      */
-    private function configFor(string $type, Request $request, array $assertions): array
+    private function configFor(string $type, Request $request, array $assertions, array $steps = []): array
     {
         if ($type === 'ping') {
             return ['fallback_port' => $request->int('fallback_port', PingChecker::DEFAULT_FALLBACK_PORT)];
@@ -336,6 +429,46 @@ final class MonitorsController extends Controller
             return [
                 'port' => $request->int('port', 0),
                 'banner' => (string) $request->input('banner', ''),
+            ];
+        }
+
+        if ($type === 'ssl') {
+            return [
+                'port' => $request->int('ssl_port', SslChecker::DEFAULT_PORT),
+                'sni_host' => trim((string) $request->input('sni_host', '')),
+                'warn_days' => $request->int('warn_days', SslChecker::DEFAULT_WARN_DAYS),
+                'critical_days' => $request->int('critical_days', SslChecker::DEFAULT_CRITICAL_DAYS),
+                'verify_chain' => $request->boolean('verify_chain'),
+                'check_hostname' => $request->boolean('check_hostname'),
+                'expected_issuer' => trim((string) $request->input('expected_issuer', '')),
+            ];
+        }
+
+        if ($type === 'domain') {
+            return [
+                'warn_days' => $request->int('warn_days', DomainChecker::DEFAULT_WARN_DAYS),
+                'critical_days' => $request->int('critical_days', DomainChecker::DEFAULT_CRITICAL_DAYS),
+                'watch_status' => $request->boolean('watch_status'),
+                'expected_registrar' => trim((string) $request->input('expected_registrar', '')),
+                'expected_nameservers' => $this->lines((string) $request->input('expected_nameservers', '')),
+            ];
+        }
+
+        if ($type === 'dns') {
+            return [
+                'record_type' => strtoupper((string) $request->input('record_type', 'A')),
+                'resolvers' => $this->lines((string) $request->input('resolvers', '')),
+                'expected_records' => $this->lines((string) $request->input('expected_records', '')),
+                'dns_mode' => (string) $request->input('dns_mode', 'contains'),
+            ];
+        }
+
+        if ($type === 'api') {
+            return [
+                'verify_ssl' => $request->boolean('verify_ssl'),
+                'follow_redirects' => $request->boolean('follow_redirects'),
+                'user_agent' => (string) $request->input('user_agent', ''),
+                'steps' => $steps,
             ];
         }
 
@@ -359,7 +492,132 @@ final class MonitorsController extends Controller
             $config['assertions'] = $assertions;
         }
 
+        if ($type === 'keyword') {
+            $config['keywords'] = $this->lines((string) $request->input('keywords', ''));
+            $config['keyword_mode'] = (string) $request->input('keyword_mode', 'all');
+            $config['case_sensitive'] = $request->boolean('case_sensitive');
+            $config['strip_html'] = $request->boolean('strip_html');
+
+            // The single-keyword field belongs to the website check; a keyword
+            // monitor keeps its words in the list above.
+            unset($config['keyword'], $config['keyword_absent']);
+        }
+
         return $config;
+    }
+
+    /** What the shared target field holds for a given type. */
+    private static function targetShape(string $type): string
+    {
+        return match ($type) {
+            'http', 'keyword', 'endpoint', 'api' => 'url',
+            'domain' => 'domain',
+            'dns' => 'dns',
+            default => 'host',
+        };
+    }
+
+    private static function targetLabel(string $type): string
+    {
+        return match (self::targetShape($type)) {
+            'url' => 'URL',
+            'domain' => 'Domain',
+            'dns' => 'Name',
+            default => 'Host',
+        };
+    }
+
+    /**
+     * A textarea of one value per line, cleaned up.
+     *
+     * @return array<int,string>
+     */
+    private function lines(string $raw): array
+    {
+        $values = [];
+        foreach (preg_split('/\R/', $raw) ?: [] as $line) {
+            $line = trim($line);
+            if ($line !== '') {
+                $values[] = $line;
+            }
+        }
+
+        return array_values(array_unique($values));
+    }
+
+    /**
+     * The steps of an API check.
+     *
+     * Each step is posted under its own index — step[0][path], step[0][assert_path][]
+     * and so on — so a step can hold repeatable rows of its own without the
+     * indexes of the two levels running into each other.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    private function parseSteps(Request $request): array
+    {
+        $raw = $request->raw('step');
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $steps = [];
+        foreach ($raw as $step) {
+            if (!is_array($step)) {
+                continue;
+            }
+
+            $path = trim((string) ($step['path'] ?? ''));
+            $name = trim((string) ($step['name'] ?? ''));
+            if ($path === '' && $name === '') {
+                continue;
+            }
+
+            $assertions = [];
+            $paths = (array) ($step['assert_path'] ?? []);
+            $operators = (array) ($step['assert_operator'] ?? []);
+            $values = (array) ($step['assert_value'] ?? []);
+            foreach ($paths as $index => $assertPath) {
+                $assertPath = trim((string) $assertPath);
+                if ($assertPath === '') {
+                    continue;
+                }
+                $assertions[] = [
+                    'path' => $assertPath,
+                    'operator' => (string) ($operators[$index] ?? 'equals'),
+                    'value' => trim((string) ($values[$index] ?? '')),
+                ];
+            }
+
+            $captures = [];
+            $captureNames = (array) ($step['capture_name'] ?? []);
+            $capturePaths = (array) ($step['capture_path'] ?? []);
+            foreach ($captureNames as $index => $captureName) {
+                $captureName = trim((string) $captureName);
+                $capturePath = trim((string) ($capturePaths[$index] ?? ''));
+                if ($captureName === '' || $capturePath === '') {
+                    continue;
+                }
+                $captures[] = ['name' => $captureName, 'path' => $capturePath];
+            }
+
+            $steps[] = [
+                'name' => mb_substr($name, 0, 60),
+                'method' => strtoupper((string) ($step['method'] ?? 'GET')),
+                'path' => $path,
+                'expected_status' => trim((string) ($step['expected_status'] ?? '')) ?: '200-299',
+                'headers' => $this->parseHeaders((string) ($step['headers'] ?? '')),
+                'body' => (string) ($step['body'] ?? ''),
+                'assertions' => $assertions,
+                'captures' => $captures,
+            ];
+
+            if (count($steps) >= ApiChecker::MAX_STEPS) {
+                break;
+            }
+        }
+
+        return $steps;
     }
 
     /**
