@@ -1357,6 +1357,26 @@ a:hover { text-decoration: underline; }
 
 .card__form { display: flex; flex-direction: column; gap: 14px; }
 
+/* The way out of a sign-in card -- back to the form you came from. Quiet and
+   centred, so it never competes with the card's own button. */
+.card__foot {
+    margin: 16px 0 0;
+    text-align: center;
+    font-size: 13px;
+    color: var(--ink-muted);
+}
+
+/* A label with something on the other end of the line: "Password", and the
+   link for when you have not got one. */
+.field__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.field__head a { font-size: 12px; }
+
 .steps {
     display: flex;
     gap: 4px;

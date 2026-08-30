@@ -47,8 +47,17 @@ final class RateLimit
         ]);
 
         if ($succeeded) {
-            Db::execute('DELETE FROM {{login_attempts}} WHERE `identifier` = ? AND `succeeded` = 0', [strtolower($identifier)]);
+            self::clear($identifier);
         }
+    }
+
+    /** Forget the failures for one identifier. Getting in is proof enough. */
+    public static function clear(string $identifier): void
+    {
+        Db::execute(
+            'DELETE FROM {{login_attempts}} WHERE `identifier` = ? AND `succeeded` = 0',
+            [strtolower($identifier)]
+        );
     }
 
     public static function windowMinutes(): int

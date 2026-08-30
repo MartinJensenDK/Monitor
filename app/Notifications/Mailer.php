@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Notifications;
 
+use App\Domain\PasswordResets;
 use App\Domain\Settings;
 use PHPMailer\PHPMailer\Exception as MailException;
 use PHPMailer\PHPMailer\PHPMailer;
@@ -123,6 +124,17 @@ final class Mailer
         [$html, $text] = EmailTemplate::test($siteName);
 
         return self::send([$recipient], $siteName . ' — test message', $html, $text);
+    }
+
+    /**
+     * @return array{ok:bool,error:string}
+     */
+    public static function sendPasswordReset(string $recipient, string $url): array
+    {
+        $siteName = Settings::get('site_name', 'Monitor');
+        [$html, $text] = EmailTemplate::passwordReset($url, PasswordResets::TTL_MINUTES);
+
+        return self::send([$recipient], $siteName . ' — choose a new password', $html, $text);
     }
 
     /** Whether enough is configured to attempt a send at all. */

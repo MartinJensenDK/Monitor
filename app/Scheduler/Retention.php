@@ -41,6 +41,13 @@ final class Retention
             'DELETE FROM {{remember_tokens}} WHERE `expires_at` < UTC_TIMESTAMP()'
         );
 
+        // Reset links stop working after an hour, used or not. They are kept a
+        // week past that so a question about one can still be answered.
+        $removed['password_resets'] = Db::execute(
+            'DELETE FROM {{password_resets}}
+             WHERE `expires_at` < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 7 DAY)'
+        );
+
         $removed['notification_log'] = Db::execute(
             'DELETE FROM {{notification_log}} WHERE `created_at` < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY)'
         );

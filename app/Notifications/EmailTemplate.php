@@ -151,6 +151,36 @@ final class EmailTemplate
     }
 
     /**
+     * The one mail that is not about a monitor. It goes to someone who cannot
+     * sign in, so it says as little as it can: no account name, no hint about
+     * what else the site knows.
+     *
+     * @return array{0:string,1:string}
+     */
+    public static function passwordReset(string $url, int $minutes): array
+    {
+        $siteName = Settings::get('site_name', 'Monitor');
+
+        return self::render(
+            'info',
+            'Choose a new password',
+            'Password',
+            sprintf(
+                'Someone asked to reset the password for this address on %s. The link works once, and only for the next %d minutes.',
+                $siteName,
+                $minutes
+            ),
+            [
+                'Requested' => gmdate('Y-m-d H:i:s') . ' UTC',
+                'Link expires' => gmdate('Y-m-d H:i:s', time() + $minutes * 60) . ' UTC',
+            ],
+            $url,
+            'Choose a new password',
+            'If this was not you, ignore the mail. Nothing has changed, and the link expires on its own.'
+        );
+    }
+
+    /**
      * @param array<string,string> $facts
      * @return array{0:string,1:string}
      */
@@ -161,7 +191,8 @@ final class EmailTemplate
         string $summary,
         array $facts,
         string $url,
-        string $action
+        string $action,
+        string $footer = 'Change what you are told about in the monitor\'s notification settings.'
     ): array {
         $color = self::COLORS[$state] ?? self::COLORS['info'];
         $siteName = Settings::get('site_name', 'Monitor');
@@ -209,7 +240,7 @@ final class EmailTemplate
     </table>
   </td></tr>
   <tr><td style="padding:16px 6px;text-align:center;font-size:12px;color:%7$s;">
-    Sent by %11$s. Change what you are told about in the monitor\'s notification settings.
+    Sent by %11$s. %12$s
   </td></tr>
 </table>
 </body></html>',
@@ -223,7 +254,8 @@ final class EmailTemplate
             self::escape($summary),
             $rows,
             $button,
-            self::escape($siteName)
+            self::escape($siteName),
+            self::escape($footer)
         );
 
         $lines = [strtoupper($badge) . ' — ' . $subject, '', $summary, ''];
@@ -235,7 +267,7 @@ final class EmailTemplate
             $lines[] = $url;
         }
         $lines[] = '';
-        $lines[] = 'Sent by ' . $siteName . '.';
+        $lines[] = 'Sent by ' . $siteName . '. ' . $footer;
 
         return [$html, implode("\n", $lines)];
     }

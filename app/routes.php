@@ -25,6 +25,13 @@ return static function (Router $router): void {
     $router->get('/login', [AuthController::class, 'showLogin'])->guest();
     $router->post('/login', [AuthController::class, 'login'])->guest();
     $router->post('/logout', [AuthController::class, 'logout']);
+
+    // Password reset. Guest-only: someone already signed in changes their
+    // password on the profile page instead.
+    $router->get('/forgot-password', [AuthController::class, 'showForgot'])->guest();
+    $router->post('/forgot-password', [AuthController::class, 'sendReset'])->guest();
+    $router->get('/reset-password/{token}', [AuthController::class, 'showReset'])->guest();
+    $router->post('/reset-password/{token}', [AuthController::class, 'resetPassword'])->guest();
     $router->post('/theme', [AuthController::class, 'theme'])->public();
 
     // Microsoft Entra ID single sign-on

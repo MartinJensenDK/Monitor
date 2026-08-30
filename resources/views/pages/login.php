@@ -61,7 +61,10 @@
         </div>
 
         <div class="field">
-            <label class="field__label" for="password">Password</label>
+            <div class="field__head">
+                <label class="field__label" for="password">Password</label>
+                <a href="/forgot-password">Forgot it?</a>
+            </div>
             <input class="input" id="password" name="password" type="password" required autocomplete="current-password">
         </div>
 

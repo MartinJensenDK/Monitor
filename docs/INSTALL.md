@@ -167,6 +167,19 @@ Nothing is emailed until two things are true: email is configured, and
 The SMTP password is encrypted with `APP_KEY` before it is stored, so a database
 dump alone does not leak it.
 
+### Forgotten passwords
+
+**Forgot it?** on the sign-in page mails a link that works once, for an hour.
+It needs email configured, but not the **Send notification emails** switch — a
+reset is not a notification. Until a sender and host are saved, the form says
+so rather than promising a mail that cannot be sent.
+
+The answer is the same for every address, so the form never reveals which ones
+have accounts here. Accounts that sign in through Entra ID are skipped
+entirely: their password lives in Microsoft. Requests are capped at five per
+address per 15 minutes, asking for a new link retires the previous one, and
+finishing a reset signs out every device that was kept signed in.
+
 ### Who gets told, and about what
 
 A **channel** is a named list of recipients — *Ops on call*, *Support*, one
