@@ -1522,6 +1522,9 @@ code {
 
 .tabs__tab {
     position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
     padding: 9px 14px 11px;
     color: var(--ink-muted);
     font-family: var(--font-display);
@@ -1538,9 +1541,25 @@ code {
     text-decoration: none;
 }
 
+.tabs__tab .icon {
+    width: 16px;
+    height: 16px;
+    /* Centring the icon in the line box leaves it sitting a shade below the
+       type's optical centre; a pixel up puts it back on the word. Transform
+       rather than margin, so nothing around it moves. */
+    transform: translateY(-1px);
+    /* Held back a step so the word stays the thing being read. */
+    opacity: 0.75;
+}
+
 .tabs__tab[aria-current="page"] {
     color: var(--ink);
     font-weight: 600;
+}
+
+.tabs__tab[aria-current="page"] .icon {
+    color: var(--accent);
+    opacity: 1;
 }
 
 .tabs__tab[aria-current="page"]::after {

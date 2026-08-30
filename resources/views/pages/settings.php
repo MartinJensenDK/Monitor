@@ -20,17 +20,20 @@ $lastRunAge = $schedulerLastRun === null ? null : max(0, time() - (strtotime($sc
 $schedulerHealthy = $lastRunAge !== null && $lastRunAge < 300;
 ?>
 <?php
+// The icons repeat the meanings the rest of the interface already gives them:
+// sliders for settings, an envelope for anything that gets emailed, and the
+// padlock that marks everything owned by Entra ID.
 $tabs = [
-    'general' => 'General',
-    'notifications' => 'Notifications',
-    'entra' => 'Entra ID',
+    'general' => ['label' => 'General', 'icon' => 'sliders'],
+    'notifications' => ['label' => 'Notifications', 'icon' => 'mail'],
+    'entra' => ['label' => 'Entra ID', 'icon' => 'lock'],
 ];
 ?>
 <div class="stack">
     <nav class="tabs" aria-label="Settings sections">
-        <?php foreach ($tabs as $key => $label): ?>
+        <?php foreach ($tabs as $key => $item): ?>
             <a class="tabs__tab" href="/settings?tab=<?= e($key) ?>" data-tab-link="<?= e($key) ?>"
-               aria-current="<?= $tab === $key ? 'page' : 'false' ?>"><?= e($label) ?></a>
+               aria-current="<?= $tab === $key ? 'page' : 'false' ?>"><?= icon($item['icon']) ?><?= e($item['label']) ?></a>
         <?php endforeach; ?>
     </nav>
 
