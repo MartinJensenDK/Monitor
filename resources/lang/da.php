@@ -97,6 +97,17 @@ return [
     'monitor.type_ssl' => 'SSL-certifikat',
     'monitor.type_domain' => 'Domæne',
     'monitor.type_dns' => 'DNS',
+
+    // One line each, shown on the type picker when you create a monitor.
+    'monitor.about_http' => 'Svarer siden?',
+    'monitor.about_keyword' => 'Står ordene der stadig?',
+    'monitor.about_endpoint' => 'JSON, felt for felt',
+    'monitor.about_api' => 'Flere kald i rækkefølge',
+    'monitor.about_ping' => 'Kan værten nås?',
+    'monitor.about_port' => 'Er porten åben?',
+    'monitor.about_ssl' => 'Hvor længe holder certifikatet?',
+    'monitor.about_domain' => 'Hvor længe holder registreringen?',
+    'monitor.about_dns' => 'Peger opslaget stadig derhen?',
     'monitor.expiry' => 'Udløber om',
     'monitor.needs_migration' => 'Afventer en database-opdatering',
     'monitor.coming_soon' => 'Kommer i næste version',

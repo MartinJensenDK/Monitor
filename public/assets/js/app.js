@@ -154,10 +154,21 @@
 
     syncRequired();
 
-    var typeSelect = document.querySelector('[data-type-select]');
-    if (typeSelect) {
+    // The type picker is a set of radio cards, so the chosen one has to be
+    // asked for rather than read off a select's value.
+    var typePicker = document.querySelector('[data-type-select]');
+    if (typePicker) {
+        var aboutLine = document.querySelector('[data-type-about]');
+
         var syncType = function () {
-            var type = typeSelect.value;
+            var chosen = typePicker.querySelector('input[name="type"]:checked');
+            var type = chosen ? chosen.value : 'http';
+
+            // Each card carries its own line; the chosen one lends it to the
+            // space under the row.
+            if (aboutLine && chosen) {
+                aboutLine.textContent = chosen.getAttribute('data-about') || '';
+            }
 
             document.querySelectorAll('[data-type-fields]').forEach(function (block) {
                 var types = block.getAttribute('data-type-fields').split(/\s+/);
@@ -200,7 +211,7 @@
                 }
             }
         };
-        typeSelect.addEventListener('change', syncType);
+        typePicker.addEventListener('change', syncType);
         syncType();
     }
 

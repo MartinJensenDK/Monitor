@@ -104,6 +104,17 @@ return [
     'monitor.type_ssl' => 'SSL certificate',
     'monitor.type_domain' => 'Domain',
     'monitor.type_dns' => 'DNS',
+
+    // One line each, shown on the type picker when you create a monitor.
+    'monitor.about_http' => 'Is the site answering?',
+    'monitor.about_keyword' => 'Do the words still appear?',
+    'monitor.about_endpoint' => 'JSON, field by field',
+    'monitor.about_api' => 'Several calls in sequence',
+    'monitor.about_ping' => 'Can the host be reached?',
+    'monitor.about_port' => 'Is the port open?',
+    'monitor.about_ssl' => 'How long is the certificate good for?',
+    'monitor.about_domain' => 'How long is the registration good for?',
+    'monitor.about_dns' => 'Does the record still point there?',
     'monitor.expiry' => 'Expires in',
     'monitor.needs_migration' => 'Waiting on a database update',
     'monitor.coming_soon' => 'Arrives in the next release',

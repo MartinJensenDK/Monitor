@@ -17,6 +17,7 @@ use App\Checks\PingTransport;
 use App\Checks\SslChecker;
 use App\Domain\Monitors;
 use App\Notifications\Channels;
+use App\Support\Icons;
 
 $isEdit = $monitor !== null;
 $action = $isEdit ? '/monitors/' . (int) $monitor['id'] : '/monitors';
@@ -203,38 +204,64 @@ $renderStep = static function (string $index, array $step) use ($isEdit): string
 <form method="post" action="<?= e($action) ?>" class="stack">
     <?= csrf_field() ?>
 
+    <?php
+    $availableTypes = Monitors::available();
+    $chosenType = $value('type', 'http');
+    ?>
+    <section class="panel">
+        <div class="panel__head">
+            <h2><?= $isEdit ? 'Kind of check' : 'What kind of check?' ?></h2>
+        </div>
+        <div class="panel__body">
+            <?php // The picker leads, because everything below it is decided by
+                  // what is chosen here. Radios rather than buttons: one of them
+                  // is the answer, the keyboard already knows how to move
+                  // between them, and the form still posts without JavaScript. ?>
+            <div class="typegrid" role="radiogroup" aria-label="<?= e(t('monitor.type')) ?>" data-type-select>
+                <?php foreach (Monitors::TYPES as $type): ?>
+                    <?php
+                // A type the database cannot store yet is closed off -- unless
+                // it is the one this monitor already is, because a disabled
+                // radio posts nothing and the save would quietly change its
+                // type to something else.
+                $usable = in_array($type, $availableTypes, true) || $chosenType === $type;
+                ?>
+                    <label class="typecard<?= $usable ? '' : ' typecard--off' ?>"
+                           <?= $usable ? '' : 'title="' . e(t('monitor.needs_migration')) . '"' ?>>
+                        <?php // The line about the type rides along on the input rather than
+                              // in the card: nine of them side by side leaves no room to
+                              // print, but the one you pick has all the room it needs below. ?>
+                        <input class="visually-hidden" type="radio" name="type" value="<?= e($type) ?>"
+                               data-about="<?= e($usable ? t('monitor.about_' . $type) : t('monitor.needs_migration')) ?>"
+                               <?= $chosenType === $type ? 'checked' : '' ?> <?= $usable ? '' : 'disabled' ?>>
+                        <?= icon(Icons::forMonitorType($type)) ?>
+                        <span class="typecard__name"><?= e(t('monitor.type_' . $type)) ?></span>
+                    </label>
+                <?php endforeach; ?>
+            </div>
+
+            <p class="typegrid__about" data-type-about><?= e(t('monitor.about_' . $chosenType)) ?></p>
+
+            <?php if (count($availableTypes) < count(Monitors::TYPES)): ?>
+                <p class="field__hint" style="margin-top:12px;">
+                    The greyed-out types are waiting on a database update. Run
+                    <code>php bin/migrate.php</code> on the server to switch them on.
+                </p>
+            <?php endif; ?>
+        </div>
+    </section>
+
     <section class="panel">
         <div class="panel__head">
             <h2><?= $isEdit ? 'Edit monitor' : 'What should we watch?' ?></h2>
         </div>
         <div class="panel__body">
             <div class="form-grid">
-                <div class="field">
+                <div class="field field--wide field--narrow">
                     <label class="field__label" for="name"><?= e(t('monitor.name')) ?></label>
                     <input class="input" id="name" name="name" required maxlength="120"
                            value="<?= e($value('name')) ?>" placeholder="Company website">
                     <span class="field__hint">What you will recognise it by on the dashboard.</span>
-                </div>
-
-                <div class="field">
-                    <label class="field__label" for="type"><?= e(t('monitor.type')) ?></label>
-                    <?php $availableTypes = Monitors::available(); ?>
-                    <select class="select" id="type" name="type" data-type-select>
-                        <?php foreach (Monitors::TYPES as $type): ?>
-                            <?php $usable = in_array($type, $availableTypes, true); ?>
-                            <option value="<?= e($type) ?>"
-                                    <?= $value('type', 'http') === $type ? 'selected' : '' ?>
-                                    <?= $usable ? '' : 'disabled' ?>>
-                                <?= e(t('monitor.type_' . $type)) ?><?= $usable ? '' : ' — ' . t('monitor.needs_migration') ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                    <?php if (count($availableTypes) < count(Monitors::TYPES)): ?>
-                        <span class="field__hint">
-                            The greyed-out types are waiting on a database update. Run
-                            <code>php bin/migrate.php</code> on the server to switch them on.
-                        </span>
-                    <?php endif; ?>
                 </div>
 
                 <div class="field field--wide">

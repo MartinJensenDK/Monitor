@@ -873,6 +873,93 @@ a:hover { text-decoration: underline; }
 
 /* ── Forms ──────────────────────────────────────────────────────────── */
 
+/* ── Type picker ────────────────────────────────────────────────────────
+   The first decision on the monitor form, and the one every panel below it
+   depends on, so it is laid out to be read at a glance rather than opened:
+   every type on one row, each card the same size, wearing the instrument icon
+   that will then follow the monitor through the dashboard, its list row and
+   its own page.
+
+   Columns are made by the flow rather than counted out, so the row still
+   divides evenly if a tenth kind of check is ever added.                    */
+
+.typegrid {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 8px;
+}
+
+/* Nine across stops being readable long before a phone. Below that the row
+   becomes a wrapping grid of the same cards, still all one size. */
+@media (max-width: 1080px) {
+    .typegrid {
+        grid-auto-flow: row;
+        grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+    }
+}
+
+.typecard {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 7px;
+    padding: 12px 6px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.typecard:hover { background: var(--panel-2); }
+
+.typecard .icon {
+    width: 22px;
+    height: 22px;
+    color: var(--ink-muted);
+}
+
+.typecard__name {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 12.5px;
+    line-height: 1.25;
+    /* "SSL certificate" is the long one. If it has to break, it breaks at its
+       space, and every card grows with it: a grid row is as tall as its
+       tallest cell, so they stay the same size. */
+}
+
+/* The radio itself is hidden, so the card wears the state for it. */
+.typecard:has(:checked) {
+    border-color: var(--accent);
+    background: var(--accent-bg);
+}
+
+.typecard:has(:checked) .icon { color: var(--accent); }
+
+.typecard:has(:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/* A type the database has not been migrated for yet. */
+.typecard--off,
+.typecard--off:hover {
+    opacity: 0.45;
+    cursor: not-allowed;
+    background: var(--panel);
+}
+
+/* What the chosen card means, in the space a card does not have. */
+.typegrid__about {
+    margin: 10px 0 0;
+    font-size: 12.5px;
+    color: var(--ink-muted);
+}
+
 .form-grid {
     display: grid;
     gap: 16px;
@@ -881,6 +968,10 @@ a:hover { text-decoration: underline; }
 
 .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .field--wide { grid-column: 1 / -1; }
+
+/* Spans the row but does not stretch across it: a field's width is a hint at
+   how much is expected in it, and a name is a few words. */
+.field--narrow { max-width: 460px; }
 
 .field__label {
     font-size: 12px;
