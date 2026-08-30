@@ -128,7 +128,7 @@ $renderStep = static function (string $index, array $step) use ($isEdit): string
 
             <div class="field field--wide">
                 <label class="field__label">Path</label>
-                <input class="input input--mono" name="<?= $n ?>[path]" placeholder="/v1/session"
+                <input class="input input--mono" name="<?= $n ?>[path]" placeholder="/v1/session" data-required
                        value="<?= e((string) ($step['path'] ?? '')) ?>">
                 <span class="field__hint">Added to the base URL above. A full <code>https://…</code> address is used as it stands.</span>
             </div>
@@ -243,7 +243,7 @@ $renderStep = static function (string $index, array $step) use ($isEdit): string
                         <input class="input input--mono" id="target" name="target" required data-target-input
                                value="<?= e($value('target')) ?>" placeholder="https://example.com">
                         <span data-type-fields="port" style="width:110px;flex:none;" hidden>
-                            <input class="input num" name="port" type="number" min="1" max="65535"
+                            <input class="input num" name="port" type="number" min="1" max="65535" data-required
                                    value="<?= e($value('port')) ?>" placeholder="Port" aria-label="Port">
                         </span>
                     </div>
@@ -460,7 +460,7 @@ $renderStep = static function (string $index, array $step) use ($isEdit): string
             <div class="form-grid">
                 <div class="field field--wide">
                     <label class="field__label" for="keywords">Words and phrases</label>
-                    <textarea class="textarea" id="keywords" name="keywords" rows="4"
+                    <textarea class="textarea" id="keywords" name="keywords" rows="4" data-required
                               placeholder="Add to basket&#10;Free delivery over 500 kr."><?= e($lines('keywords')) ?></textarea>
                     <span class="field__hint">One per line. A phrase may contain spaces and punctuation.</span>
                 </div>
@@ -782,7 +782,7 @@ $renderStep = static function (string $index, array $step) use ($isEdit): string
                     Groups decide who sees this monitor. <strong>Can edit</strong> also lets the group change it and
                     acknowledge its incidents — within what their role allows.
                 </p>
-                <div class="access">
+                <div class="access" data-access-required>
                     <?php foreach ($assignable as $group): ?>
                         <?php $current = old('group_access_' . (int) $group['id']) ?: ($assigned[(int) $group['id']] ?? 'none'); ?>
                         <div class="access__row">

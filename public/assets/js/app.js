@@ -142,6 +142,18 @@
     // Mirrors Monitors::minimumInterval(); the server enforces it either way.
     var MIN_INTERVALS = { domain: 3600 };
 
+    // Some fields are only required once their monitor type is on screen: the
+    // port of a port check, the words of a keyword check, the path of an API
+    // step. The attribute has to come and go with the panel, because a browser
+    // refuses to submit a form that is waiting on a field nobody can see.
+    function syncRequired() {
+        document.querySelectorAll('[data-required]').forEach(function (field) {
+            field.required = !field.closest('[hidden]');
+        });
+    }
+
+    syncRequired();
+
     var typeSelect = document.querySelector('[data-type-select]');
     if (typeSelect) {
         var syncType = function () {
@@ -151,6 +163,8 @@
                 var types = block.getAttribute('data-type-fields').split(/\s+/);
                 block.hidden = types.indexOf(type) === -1;
             });
+
+            syncRequired();
 
             var copy = TARGETS[type] || TARGETS.http;
             var label = document.querySelector('[data-target-label]');
@@ -188,6 +202,20 @@
         };
         typeSelect.addEventListener('change', syncType);
         syncType();
+    }
+
+    // Sharing is required as well, but it is a row of radios per group rather
+    // than one field, so nothing native can mark it. The list keeps a ring
+    // around it until some group is given a level other than "no access".
+    var access = document.querySelector('[data-access-required]');
+    if (access) {
+        var syncAccess = function () {
+            var chosen = access.querySelector('input[type="radio"]:checked:not([value="none"])');
+            access.classList.toggle('access--needed', !chosen);
+        };
+
+        access.addEventListener('change', syncAccess);
+        syncAccess();
     }
 
     // Repeatable rows: endpoint assertions, and the assertions and captures
@@ -273,6 +301,7 @@
 
                 stepList.appendChild(step);
                 numberSteps();
+                syncRequired();
 
                 var first = step.querySelector('input');
                 if (first) first.focus();

@@ -909,6 +909,34 @@ a:hover { text-decoration: underline; }
     padding-right: 32px;
 }
 
+/* ── Fields still waiting on you ────────────────────────────────────────
+   A required field that is empty is tinted with the warning colour, not the
+   error one: nothing is wrong yet, the field simply is not done. The tint
+   clears as soon as something is typed, so a blank form shows the short list
+   of what it needs and shortens it as you go.
+
+   The asterisk stays put whether the field is filled or not — it says "this
+   one is mandatory", which is true either way, while the colour says "not
+   yet". Sign-in is left out of all this: two amber boxes on every visit
+   would read as a rejected password. */
+
+.shell .input:required:invalid:not(:focus),
+.shell .select:required:invalid:not(:focus),
+.shell .textarea:required:invalid:not(:focus) {
+    border-color: var(--warn);
+    background-color: var(--warn-bg);
+}
+
+.shell .field:has(:required) .field__label::after {
+    content: "*";
+    margin-left: 3px;
+    color: var(--ink-muted);
+}
+
+.shell .field:has(:required:invalid) .field__label::after {
+    color: var(--warn);
+}
+
 .check {
     display: flex;
     align-items: flex-start;
@@ -1174,6 +1202,15 @@ a:hover { text-decoration: underline; }
 
 .access__name { font-weight: 500; }
 .access__meta { font-size: 11.5px; color: var(--ink-muted); }
+
+/* Sharing is required too, but it is a set of radios rather than one input,
+   so the ring goes around the whole list until some group is given a level.
+   Border only: the same wash that nudges on a small input would read as an
+   alarm across a whole panel. The rule sits after .access on purpose --
+   that one sets the border shorthand and would otherwise win. */
+.access--needed {
+    border-color: var(--warn);
+}
 
 /* ── Login and install ──────────────────────────────────────────────── */
 
