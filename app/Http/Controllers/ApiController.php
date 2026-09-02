@@ -8,6 +8,7 @@ use App\Core\HttpException;
 use App\Core\Request;
 use App\Core\Response;
 use App\Domain\Incidents;
+use App\Domain\Locations;
 use App\Domain\Monitors;
 use App\Domain\Stats;
 
@@ -69,6 +70,7 @@ final class ApiController extends Controller
                 'open_incidents' => Incidents::openCount(),
             ],
             'monitors' => $rows,
+            'locations' => Locations::overview(),
             'incidents' => array_map(static fn (array $i): array => [
                 'id' => (int) $i['id'],
                 'monitor_id' => (int) $i['monitor_id'],

@@ -45,6 +45,12 @@ what it reports back.
   skip — is logged, so "why didn't I get an email?" has an answer.
 - **Live dashboard** — the page updates every five seconds without reloading.
   Nothing changed since the last poll costs the server one query and returns 304.
+- **Locations and the world map** — give a monitor a place, and it appears as a pin
+  on the dashboard map, coloured by the worst thing happening there. Places are
+  named and placed by you: click the map, or type the coordinates. Nothing is
+  geocoded, because a self-hosted monitor should not have to tell a third party
+  where your racks are. The pins obey the same group rules as everything else —
+  you only see a place if you can see something at it.
 - **Charts** — response time with p95, outages painted behind the line, 30 days of
   daily uptime bars, an availability donut and a certificate-expiry meter.
 - **Incidents** — opened only after a failure survives its retries, closed

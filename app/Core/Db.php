@@ -216,11 +216,17 @@ final class Db
         self::value('SELECT RELEASE_LOCK(?)', [$name]);
     }
 
+    /**
+     * Asked through information_schema rather than SHOW TABLES: prepared
+     * statements are not emulated here, and MySQL will not take a placeholder
+     * in a SHOW.
+     */
     public static function tableExists(string $table): bool
     {
-        $full = self::$prefix . $table;
-        $row = self::selectOne('SHOW TABLES LIKE ?', [$full]);
-
-        return $row !== null;
+        return (int) self::value(
+            'SELECT COUNT(*) FROM `information_schema`.`TABLES`
+             WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = ?',
+            [self::$prefix . $table]
+        ) > 0;
     }
 }

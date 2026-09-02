@@ -4,6 +4,7 @@
  * @var array<string,mixed> $config
  * @var array<int,array<string,mixed>> $assignable
  * @var array<int,string> $assigned   group id => access
+ * @var array<int,array<string,mixed>> $locations
  */
 
 use App\Checks\ApiChecker;
@@ -281,6 +282,30 @@ $renderStep = static function (string $index, array $step) use ($isEdit): string
                     </div>
                     <span class="field__hint" data-target-hint>The full address to request, including https://.</span>
                 </div>
+
+                <?php // Optional, and the map on the dashboard is the whole
+                      // reason to fill it in: an unpinned monitor is watched
+                      // just as closely, it simply does not appear there. ?>
+                <?php if (App\Domain\Locations::isReady()): ?>
+                <div class="field field--wide field--narrow">
+                    <label class="field__label" for="location_id"><?= e(t('monitor.location')) ?></label>
+                    <div class="inline">
+                        <select class="select" id="location_id" name="location_id">
+                            <option value="0"><?= e(t('monitor.no_location')) ?></option>
+                            <?php foreach ($locations as $place): ?>
+                                <option value="<?= (int) $place['id'] ?>"
+                                        <?= (int) $value('location_id', '0') === (int) $place['id'] ? 'selected' : '' ?>>
+                                    <?= e((string) $place['name']) ?><?= ($place['address'] ?? '') !== '' ? ' — ' . e((string) $place['address']) : '' ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <?php if (can('locations.manage')): ?>
+                            <a class="btn btn--sm" href="/locations/new"><?= icon('plus') ?>New</a>
+                        <?php endif; ?>
+                    </div>
+                    <span class="field__hint"><?= e(t('monitor.location_hint')) ?></span>
+                </div>
+                <?php endif; ?>
             </div>
         </div>
     </section>

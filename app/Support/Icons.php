@@ -49,6 +49,8 @@ final class Icons
         'quote' => '<path d="M9 6C6.2 7.4 4.5 9.8 4.5 13v5h6v-6H8c0-2 .5-3.4 2-4.4Z"/><path d="M19 6c-2.8 1.4-4.5 3.8-4.5 7v5h6v-6H18c0-2 .5-3.4 2-4.4Z"/>',
         'steps' => '<path d="M3 19h4v-4h5v-4h5V7h4"/><circle cx="7" cy="19" r="1.6"/><circle cx="12" cy="15" r="1.6"/><circle cx="17" cy="11" r="1.6"/>',
         'registry' => '<ellipse cx="12" cy="6" rx="7.5" ry="3"/><path d="M4.5 6v12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6"/><path d="M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3"/>',
+        'pin' => '<path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/>',
+        'map' => '<path d="M9 4 3 6.5v13L9 17l6 2.5 6-2.5v-13L15 6.5 9 4Z"/><path d="M9 4v13"/><path d="M15 6.5v13"/>',
         'signpost' => '<path d="M12 3v18"/><path d="M12 6h6l2.5 2.5L18 11h-6"/><path d="M12 13H6l-2.5 2.5L6 18h6"/>',
     ];
 

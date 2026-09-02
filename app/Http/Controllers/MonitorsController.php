@@ -14,6 +14,7 @@ use App\Domain\AuditLog;
 use App\Domain\Gate;
 use App\Domain\Groups;
 use App\Domain\Incidents;
+use App\Domain\Locations;
 use App\Domain\Monitors;
 use App\Domain\Stats;
 use App\Scheduler\Runner;
@@ -37,6 +38,7 @@ final class MonitorsController extends Controller
             'status' => (string) $request->query('status', 'all'),
             'type' => (string) $request->query('type', 'all'),
             'group' => (int) $request->query('group', '0'),
+            'location' => (int) $request->query('location', '0'),
             'q' => trim((string) $request->query('q', '')),
         ];
 
@@ -49,6 +51,7 @@ final class MonitorsController extends Controller
             'tapes' => Monitors::tapes($ids, 48),
             'filters' => $filters,
             'groups' => Groups::assignable(),
+            'locations' => Locations::all(),
             'counts' => Monitors::statusCounts(),
         ]);
     }
@@ -76,6 +79,7 @@ final class MonitorsController extends Controller
             'series' => Stats::series($id, $range),
             'range' => $range,
             'groups' => Monitors::groups($id),
+            'location' => Locations::forMonitor($monitor),
             'canEdit' => Gate::canEdit($monitor),
             'canDelete' => Gate::canDelete($monitor),
             'notifications' => Channels::activeFor($id),
@@ -91,6 +95,7 @@ final class MonitorsController extends Controller
             'config' => [],
             'assignable' => Groups::assignable(),
             'assigned' => [],
+            'locations' => Locations::all(),
             'channels' => Channels::all(),
             'rules' => [],
             'pingTransport' => PingTransport::detect(),
@@ -113,6 +118,7 @@ final class MonitorsController extends Controller
             'config' => Monitors::config($monitor),
             'assignable' => Groups::assignable(),
             'assigned' => $assigned,
+            'locations' => Locations::all(),
             'channels' => Channels::all(),
             'rules' => Channels::rulesFor((int) $monitor['id']),
             'pingTransport' => PingTransport::detect(),
@@ -379,6 +385,16 @@ final class MonitorsController extends Controller
             }
         }
 
+        // A location is optional, but a location id that names nothing is a
+        // stale form or a hand-made request, and silently dropping it would
+        // save the monitor somewhere the person did not choose.
+        $locationId = $request->int('location_id', 0);
+        $validator->custom(
+            'location_id',
+            $locationId === 0 || Locations::find($locationId) !== null,
+            'That location no longer exists. Pick another, or leave it unpinned.'
+        );
+
         $timeout = $request->int('timeout_seconds', 10);
         $interval = $request->int('interval_seconds', 60);
         $validator->custom(
@@ -405,6 +421,7 @@ final class MonitorsController extends Controller
                 'retries' => $request->int('retries', 2),
                 'degraded_ms' => $request->int('degraded_ms', 0) > 0 ? $request->int('degraded_ms', 0) : null,
                 'tags' => (string) $request->input('tags', '') ?: null,
+                'location_id' => $locationId,
                 'config' => $this->configFor($type, $request, $assertions, $steps),
             ],
             'groups' => $groups,

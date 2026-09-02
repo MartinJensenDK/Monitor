@@ -52,6 +52,10 @@ final class Monitors
             $where[] = 'EXISTS (SELECT 1 FROM {{monitor_group_access}} f WHERE f.`monitor_id` = m.`id` AND f.`group_id` = :group_filter)';
             $params['group_filter'] = (int) $filters['group'];
         }
+        if (($filters['location'] ?? 0) > 0 && Locations::isReady()) {
+            $where[] = 'm.`location_id` = :location_filter';
+            $params['location_filter'] = (int) $filters['location'];
+        }
         if (($filters['q'] ?? '') !== '') {
             $where[] = '(m.`name` LIKE :q OR m.`target` LIKE :q)';
             $params['q'] = '%' . $filters['q'] . '%';
@@ -95,6 +99,36 @@ final class Monitors
     }
 
     /**
+     * Columns every write shares. location_id is folded in only once its
+     * migration has run, so a site with new files and an old database saves
+     * monitors exactly as it did before.
+     *
+     * @param array<string,mixed> $data
+     * @return array<string,mixed>
+     */
+    private static function columns(array $data): array
+    {
+        $columns = [
+            'name' => $data['name'],
+            'type' => $data['type'],
+            'target' => $data['target'],
+            'enabled' => $data['enabled'] ? 1 : 0,
+            'interval_seconds' => $data['interval_seconds'],
+            'timeout_seconds' => $data['timeout_seconds'],
+            'retries' => $data['retries'],
+            'degraded_ms' => $data['degraded_ms'],
+            'config' => json_encode($data['config'], JSON_UNESCAPED_SLASHES),
+            'tags' => $data['tags'] ?? null,
+        ];
+
+        if (Locations::isReady()) {
+            $columns['location_id'] = ($data['location_id'] ?? 0) > 0 ? (int) $data['location_id'] : null;
+        }
+
+        return $columns;
+    }
+
+    /**
      * @param array<string,mixed> $data
      * @param array<int,array{group_id:int,access:string}> $groups
      */
@@ -103,18 +137,8 @@ final class Monitors
         $now = gmdate('Y-m-d H:i:s');
 
         return Db::transaction(static function () use ($data, $groups, $now): int {
-            $id = Db::insert('monitors', [
+            $id = Db::insert('monitors', self::columns($data) + [
                 'uuid' => Str::uuid4(),
-                'name' => $data['name'],
-                'type' => $data['type'],
-                'target' => $data['target'],
-                'enabled' => $data['enabled'] ? 1 : 0,
-                'interval_seconds' => $data['interval_seconds'],
-                'timeout_seconds' => $data['timeout_seconds'],
-                'retries' => $data['retries'],
-                'degraded_ms' => $data['degraded_ms'],
-                'config' => json_encode($data['config'], JSON_UNESCAPED_SLASHES),
-                'tags' => $data['tags'] ?? null,
                 'created_by' => Auth::id() ?: null,
                 'created_at' => $now,
                 'updated_at' => $now,
@@ -142,19 +166,7 @@ final class Monitors
         $now = gmdate('Y-m-d H:i:s');
 
         Db::transaction(static function () use ($id, $data, $groups, $now): void {
-            Db::update('monitors', [
-                'name' => $data['name'],
-                'type' => $data['type'],
-                'target' => $data['target'],
-                'enabled' => $data['enabled'] ? 1 : 0,
-                'interval_seconds' => $data['interval_seconds'],
-                'timeout_seconds' => $data['timeout_seconds'],
-                'retries' => $data['retries'],
-                'degraded_ms' => $data['degraded_ms'],
-                'config' => json_encode($data['config'], JSON_UNESCAPED_SLASHES),
-                'tags' => $data['tags'] ?? null,
-                'updated_at' => $now,
-            ], ['id' => $id]);
+            Db::update('monitors', self::columns($data) + ['updated_at' => $now], ['id' => $id]);
 
             self::syncGroups($id, $groups);
 

@@ -10,6 +10,7 @@ use App\Http\Controllers\EntraController;
 use App\Http\Controllers\GroupsController;
 use App\Http\Controllers\IncidentsController;
 use App\Http\Controllers\InstallController;
+use App\Http\Controllers\LocationsController;
 use App\Http\Controllers\MonitorsController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SettingsController;
@@ -67,6 +68,15 @@ return static function (Router $router): void {
     $router->post('/users/{id}/delete', [UsersController::class, 'destroy'])->can('users.manage');
     // Signed in is enough: the controller decides whose photo you may see.
     $router->get('/users/{id}/photo', [UsersController::class, 'photo']);
+
+    // Places. Editors keep the list, because whoever adds the monitor is the
+    // one who knows where the thing actually stands.
+    $router->get('/locations', [LocationsController::class, 'index'])->can('locations.manage');
+    $router->get('/locations/new', [LocationsController::class, 'create'])->can('locations.manage');
+    $router->post('/locations', [LocationsController::class, 'store'])->can('locations.manage');
+    $router->get('/locations/{id}', [LocationsController::class, 'edit'])->can('locations.manage');
+    $router->post('/locations/{id}', [LocationsController::class, 'update'])->can('locations.manage');
+    $router->post('/locations/{id}/delete', [LocationsController::class, 'destroy'])->can('locations.manage');
 
     $router->get('/groups', [GroupsController::class, 'index'])->can('groups.view');
     $router->get('/groups/new', [GroupsController::class, 'create'])->can('groups.manage');

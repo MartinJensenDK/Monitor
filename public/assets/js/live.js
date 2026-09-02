@@ -94,6 +94,27 @@
             }
         });
 
+        // The map: a pin only ever carries a colour, so the class is the
+        // whole update. Locations that came or went need a reload -- pins are
+        // server-rendered, and a place is not added mid-poll.
+        (data.locations || []).forEach(function (place) {
+            var pin = document.querySelector('[data-location-id="' + place.id + '"]');
+            if (pin) {
+                pin.setAttribute('class', 'wmap__pin wmap__pin--' + place.status);
+                var title = pin.querySelector('title');
+                if (title) title.textContent = place.name + ' \u2014 ' + locationSummary(place);
+            }
+
+            var row = document.querySelector('[data-location-row="' + place.id + '"]');
+            var badge = row && row.querySelector('[data-location-status]');
+            if (badge) {
+                badge.setAttribute('class', 'pill pill--' + place.status);
+                badge.textContent = place.down > 0
+                    ? place.down + ' down'
+                    : (place.degraded > 0 ? place.degraded + ' degraded' : place.total + ' up');
+            }
+        });
+
         var fleetTape = document.querySelector('[data-fleet-tape]');
         if (fleetTape && window.MonitorTape) {
             var merged = [];
@@ -101,6 +122,12 @@
             merged.sort(function (a, b) { return a.checked_at < b.checked_at ? -1 : 1; });
             window.MonitorTape.paint(fleetTape, merged.slice(-160), 'fleet');
         }
+    }
+
+    function locationSummary(place) {
+        if (place.down > 0) return place.down + ' of ' + place.total + ' down';
+        if (place.degraded > 0) return place.degraded + ' of ' + place.total + ' degraded';
+        return place.total > 0 ? 'all ' + place.total + ' up' : 'nothing watched yet';
     }
 
     /* ── Single monitor page ────────────────────────────────────────── */

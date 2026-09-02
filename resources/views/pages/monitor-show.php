@@ -13,6 +13,7 @@
  * @var array{avg:?int,p95:?int,min:?int,max:?int} $latency
  * @var string $range
  * @var array<int,array{group_id:int,access:string,name:string,source:string}> $groups
+ * @var array<string,mixed>|null $location
  * @var bool $canEdit
  * @var bool $canDelete
  * @var array<int,array<string,mixed>> $notifications
@@ -396,6 +397,20 @@ $circumference = 2 * M_PI * 34;
                     <?php if (!empty($monitor['degraded_ms'])): ?>
                         <dt><?= e(t('monitor.degraded_ms')) ?></dt>
                         <dd class="num"><?= (int) $monitor['degraded_ms'] ?> ms</dd>
+                    <?php endif; ?>
+
+                    <?php if ($location !== null): ?>
+                        <dt><?= e(t('monitor.location')) ?></dt>
+                        <dd>
+                            <?php if (can('locations.manage')): ?>
+                                <a href="/locations/<?= (int) $location['id'] ?>"><?= e((string) $location['name']) ?></a>
+                            <?php else: ?>
+                                <?= e((string) $location['name']) ?>
+                            <?php endif; ?>
+                            <?php if (($location['address'] ?? '') !== ''): ?>
+                                <span class="row__target truncate"><?= e((string) $location['address']) ?></span>
+                            <?php endif; ?>
+                        </dd>
                     <?php endif; ?>
 
                     <dt><?= e(t('monitor.shared_with')) ?></dt>

@@ -1851,3 +1851,163 @@ code {
         width: 100%;
     }
 }
+
+/* ── World map ──────────────────────────────────────────────────────────
+   Land is a quiet plate, the graticule a scored grid on it, and the only
+   saturated thing on the drawing is a pin. Same rule as the rest of the
+   product: colour means state, never decoration. */
+
+.wmap {
+    position: relative;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.wmap__svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    /* Dragging the map should move the map, not select the drawing. */
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: grab;
+}
+
+.wmap[data-wmap-panning] .wmap__svg { cursor: grabbing; }
+
+.wmap__sea { fill: var(--panel-2); }
+
+.wmap__grid {
+    stroke: var(--line);
+    stroke-width: 1;
+    opacity: 0.55;
+}
+
+.wmap__land {
+    fill: var(--panel-3);
+    stroke: var(--line);
+    stroke-width: 1;
+}
+
+:root[data-theme="dark"] .wmap__land { fill: #1d2831; stroke: #2c3944; }
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) .wmap__land { fill: #1d2831; stroke: #2c3944; }
+}
+
+/* A pin is a survey mark: a dot inside a ring, with a soft halo so it stays
+   readable over the land plate as well as over the sea. */
+.wmap__pin { cursor: pointer; }
+.wmap__pin .wmap__halo { fill: var(--idle); opacity: 0.16; }
+.wmap__pin .wmap__ring { fill: none; stroke: var(--idle); stroke-width: 1.4; }
+.wmap__pin .wmap__dot { fill: var(--idle); }
+
+.wmap__pin--up .wmap__halo { fill: var(--up); }
+.wmap__pin--up .wmap__ring { stroke: var(--up); }
+.wmap__pin--up .wmap__dot { fill: var(--up); }
+
+.wmap__pin--degraded .wmap__halo { fill: var(--warn); opacity: 0.24; }
+.wmap__pin--degraded .wmap__ring { stroke: var(--warn); }
+.wmap__pin--degraded .wmap__dot { fill: var(--warn); }
+
+.wmap__pin--down .wmap__halo { fill: var(--down); opacity: 0.28; }
+.wmap__pin--down .wmap__ring { stroke: var(--down); }
+.wmap__pin--down .wmap__dot { fill: var(--down); }
+
+/* Only an outage pulses. If everything pulsed, nothing would. The box needs
+   naming, or the scale would happen around the map's corner instead of the
+   pin's own middle. */
+.wmap__pin--down .wmap__halo {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: wmap-ping 2.4s ease-out infinite;
+}
+
+@keyframes wmap-ping {
+    0% { transform: scale(0.7); opacity: 0.45; }
+    70% { transform: scale(1.6); opacity: 0; }
+    100% { transform: scale(1.6); opacity: 0; }
+}
+
+.wmap__pin:hover .wmap__ring,
+.wmap__pin:focus-visible .wmap__ring { stroke-width: 2.4; }
+
+.wmap__pin:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/* Picker mode: the map is the input, so it says so on hover. Dragging still
+   pans, and that is the one moment it stops being a crosshair. */
+.wmap--picker .wmap__svg { cursor: crosshair; }
+.wmap--picker[data-wmap-panning] .wmap__svg { cursor: grabbing; }
+.wmap--picker .wmap__pin--picked .wmap__ring { stroke: var(--accent); stroke-width: 1.8; }
+.wmap--picker .wmap__pin--picked .wmap__dot { fill: var(--accent); }
+
+.wmap-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(200px, 260px);
+    gap: 10px 16px;
+    align-items: start;
+}
+
+/* Map and its caption stack in the first column; the list runs down beside
+   both of them. Placed explicitly, because the caption sits between the two
+   in the markup and auto-placement would put it in the wrong cell. */
+.wmap-layout > .wmap { grid-column: 1; grid-row: 1; }
+.wmap-layout > .wmap-hint { grid-column: 1; grid-row: 2; }
+.wmap-layout > .wmap-list { grid-column: 2; grid-row: 1 / span 2; }
+
+.wmap-hint {
+    margin: 0;
+    font-size: 11.5px;
+    color: var(--ink-muted);
+}
+
+.wmap-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 340px;
+    overflow-y: auto;
+}
+
+.wmap-list__item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 4px 10px;
+    padding: 7px 8px;
+    border-radius: var(--radius-sm);
+}
+
+.wmap-list__item:hover { background: var(--panel-2); }
+
+.wmap-list__name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.wmap-list__name:hover { color: var(--accent); text-decoration: none; }
+
+.wmap-list__where {
+    grid-column: 1;
+    font-size: 11.5px;
+    color: var(--ink-muted);
+}
+
+.wmap-list__item .pill { grid-row: 1 / span 2; align-self: center; }
+
+@media (max-width: 900px) {
+    .wmap-layout { grid-template-columns: minmax(0, 1fr); }
+    .wmap-layout > .wmap,
+    .wmap-layout > .wmap-hint,
+    .wmap-layout > .wmap-list { grid-column: 1; grid-row: auto; }
+    .wmap-list { max-height: none; }
+}

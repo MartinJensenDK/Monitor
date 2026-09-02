@@ -4,6 +4,7 @@
  * @var array<int,array<int,array<string,mixed>>> $tapes
  * @var array<string,mixed> $filters
  * @var array<int,array<string,mixed>> $groups
+ * @var array<int,array<string,mixed>> $locations
  * @var array<string,int> $counts
  */
 
@@ -39,6 +40,17 @@ $queryFor = static function (array $overrides) use ($filters): string {
                         <?php foreach ($groups as $group): ?>
                             <option value="<?= (int) $group['id'] ?>" <?= (int) $filters['group'] === (int) $group['id'] ? 'selected' : '' ?>>
                                 <?= e((string) $group['name']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                <?php endif; ?>
+
+                <?php if ($locations !== []): ?>
+                    <select class="select" name="location" data-autosubmit style="width:auto;">
+                        <option value="0"><?= e(t('monitor.any_location')) ?></option>
+                        <?php foreach ($locations as $place): ?>
+                            <option value="<?= (int) $place['id'] ?>" <?= (int) $filters['location'] === (int) $place['id'] ? 'selected' : '' ?>>
+                                <?= e((string) $place['name']) ?>
                             </option>
                         <?php endforeach; ?>
                     </select>

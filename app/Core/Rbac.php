@@ -35,6 +35,7 @@ final class Rbac
             'monitors.edit',
             'monitors.pause',
             'incidents.acknowledge',
+            'locations.manage',
             'incidents.resolve',
             'notifications.edit',
         ]);

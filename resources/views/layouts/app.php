@@ -30,6 +30,9 @@ $adminNav = [];
 if (can('users.view')) {
     $adminNav[] = ['path' => '/users', 'label' => t('nav.people'), 'icon' => 'users', 'match' => '/users'];
 }
+if (can('locations.manage')) {
+    $adminNav[] = ['path' => '/locations', 'label' => t('nav.locations'), 'icon' => 'pin', 'match' => '/locations'];
+}
 if (can('groups.view')) {
     $adminNav[] = ['path' => '/groups', 'label' => t('nav.groups'), 'icon' => 'group', 'match' => '/groups'];
 }
@@ -174,6 +177,7 @@ $isActive = static function (string $match) use ($currentPath): bool {
 <script src="<?= asset('assets/js/modal.js') ?>" defer></script>
 <script src="<?= asset('assets/js/app.js') ?>" defer></script>
 <script src="<?= asset('assets/js/tape.js') ?>" defer></script>
+<script src="<?= asset('assets/js/worldmap.js') ?>" defer></script>
 <script src="<?= asset('assets/js/live.js') ?>" defer></script>
 <?php if (!empty($needsCharts)): ?>
     <script src="<?= asset('assets/vendor/uPlot.iife.min.js') ?>" defer></script>

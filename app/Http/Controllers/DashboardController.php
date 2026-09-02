@@ -8,6 +8,7 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Domain\Groups;
 use App\Domain\Incidents;
+use App\Domain\Locations;
 use App\Domain\Monitors;
 use App\Domain\Stats;
 
@@ -40,6 +41,7 @@ final class DashboardController extends Controller
             'incidents' => Incidents::recent(6),
             'series' => Stats::fleetSeries($range),
             'range' => $range,
+            'locations' => Locations::overview(),
             'groups' => Groups::assignable(),
             'activeGroup' => (int) $request->query('group', '0'),
             'activeStatus' => (string) $request->query('status', 'all'),

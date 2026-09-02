@@ -202,6 +202,26 @@ expected did not arrive.
 Local sendmail works, but mail from a server without correct SPF and DKIM records
 usually lands in spam. If alerts go missing, that is the first thing to check.
 
+## Locations and the map
+
+Optional, and nothing on the dashboard depends on it. **Locations** in the
+sidebar keeps a list of places: a name, an address in whatever words make sense
+to whoever reads it, and a pair of coordinates. Pick one when you create or edit
+a monitor and it appears as a pin on the dashboard map.
+
+Coordinates are typed or clicked, never looked up. There is no geocoding step
+and no request to any mapping service — the map is drawn from coastlines
+shipped with the application, and telling an outside service where your servers
+are is exactly the sort of thing a self-hosted tool should not do quietly. Click
+the map to drop the pin roughly, then adjust the two number fields if you want
+it exact; the fields are also how the map is used from a keyboard.
+
+A pin takes the colour of the worst monitor at that location, and it obeys the
+same group rules as everything else: a place appears on your map only if at
+least one monitor there is shared with a group you are in. Editors and
+administrators may keep the list. Deleting a location leaves its monitors
+running, with their history intact — they simply come off the map.
+
 ## Signing in with Microsoft
 
 Optional. Monitor can use Microsoft Entra ID for sign-in, for group membership,

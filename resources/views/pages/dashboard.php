@@ -13,6 +13,7 @@
  * @var array<int,array<string,mixed>> $incidents
  * @var array{t:array<int,int>,avg:array<int,int|null>,fail:array<int,float>} $series
  * @var string $range
+ * @var array<int,array<string,mixed>> $locations
  * @var array<int,array<string,mixed>> $groups
  */
 
@@ -81,6 +82,63 @@ $fleetTape = array_slice($fleetTape, -160);
             </p>
         </div>
     </section>
+
+    <?php // The map only earns its place once something is pinned to it. Until
+          // then it is shown to whoever can fix that, and to nobody else. ?>
+    <?php if ($locations !== [] || (App\Domain\Locations::isReady() && can('locations.manage'))): ?>
+        <section class="panel" style="margin-top:18px;">
+            <div class="panel__head">
+                <div>
+                    <p class="eyebrow"><?= e(t('dashboard.where')) ?></p>
+                    <h2><?= e(t('dashboard.map_title')) ?></h2>
+                </div>
+                <?php if (can('locations.manage')): ?>
+                    <div class="btn-row">
+                        <a class="btn btn--sm" href="/locations"><?= icon('pin') ?><?= e(t('nav.locations')) ?></a>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <?php if ($locations === []): ?>
+                <div class="empty">
+                    <h3><?= e(t('location.empty_title')) ?></h3>
+                    <p><?= e(t('location.empty_body')) ?></p>
+                    <a class="btn btn--primary" href="/locations/new"><?= icon('plus') ?><?= e(t('action.add_location')) ?></a>
+                </div>
+            <?php else: ?>
+                <div class="panel__body">
+                    <div class="wmap-layout">
+                        <?= View::partial('partials/world-map', [
+                            'pins' => $locations,
+                            'label' => 'Every location with monitors on it, coloured by the worst status there',
+                        ]) ?>
+
+                        <p class="wmap-hint"><?= e(t('dashboard.map_hint')) ?></p>
+
+                        <ul class="wmap-list">
+                            <?php foreach ($locations as $location): ?>
+                                <li class="wmap-list__item" data-location-row="<?= (int) $location['id'] ?>">
+                                    <a class="wmap-list__name truncate" href="/monitors?location=<?= (int) $location['id'] ?>">
+                                        <?= e((string) $location['name']) ?>
+                                    </a>
+                                    <?php if ($location['address'] !== ''): ?>
+                                        <span class="wmap-list__where truncate"><?= e((string) $location['address']) ?></span>
+                                    <?php endif; ?>
+                                    <span class="pill pill--<?= e((string) $location['status']) ?>" data-location-status>
+                                        <?= (int) $location['down'] > 0
+                                            ? (int) $location['down'] . ' down'
+                                            : ((int) $location['degraded'] > 0
+                                                ? (int) $location['degraded'] . ' degraded'
+                                                : (int) $location['total'] . ' up') ?>
+                                    </span>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                </div>
+            <?php endif; ?>
+        </section>
+    <?php endif; ?>
 
     <div class="grid grid--split" style="margin-top:18px;">
         <section class="panel">
