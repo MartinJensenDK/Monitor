@@ -228,11 +228,13 @@ $renderStep = static function (string $index, array $step) use ($isEdit): string
                 ?>
                     <label class="typecard<?= $usable ? '' : ' typecard--off' ?>"
                            <?= $usable ? '' : 'title="' . e(t('monitor.needs_migration')) . '"' ?>>
-                        <?php // The line about the type rides along on the input rather than
+                        <?php // What the type is about rides along on the input rather than
                               // in the card: nine of them side by side leaves no room to
-                              // print, but the one you pick has all the room it needs below. ?>
+                              // print, but the one you pick has all the room it needs
+                              // below -- what it watches, and what it takes to call it down. ?>
                         <input class="visually-hidden" type="radio" name="type" value="<?= e($type) ?>"
                                data-about="<?= e($usable ? t('monitor.about_' . $type) : t('monitor.needs_migration')) ?>"
+                               data-down="<?= e($usable ? t('monitor.down_' . $type) : '') ?>"
                                <?= $chosenType === $type ? 'checked' : '' ?> <?= $usable ? '' : 'disabled' ?>>
                         <?= icon(Icons::forMonitorType($type)) ?>
                         <span class="typecard__name"><?= e(t('monitor.type_' . $type)) ?></span>
@@ -240,7 +242,10 @@ $renderStep = static function (string $index, array $step) use ($isEdit): string
                 <?php endforeach; ?>
             </div>
 
-            <p class="typegrid__about" data-type-about><?= e(t('monitor.about_' . $chosenType)) ?></p>
+            <p class="typegrid__about">
+                <span class="typegrid__watches" data-type-about><?= e(t('monitor.about_' . $chosenType)) ?></span>
+                <span data-type-down><?= e(t('monitor.down_' . $chosenType)) ?></span>
+            </p>
 
             <?php if (count($availableTypes) < count(Monitors::TYPES)): ?>
                 <p class="field__hint" style="margin-top:12px;">

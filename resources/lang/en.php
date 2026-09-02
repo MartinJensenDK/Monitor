@@ -105,16 +105,29 @@ return [
     'monitor.type_domain' => 'Domain',
     'monitor.type_dns' => 'DNS',
 
-    // One line each, shown on the type picker when you create a monitor.
-    'monitor.about_http' => 'Is the site answering?',
-    'monitor.about_keyword' => 'Do the words still appear?',
-    'monitor.about_endpoint' => 'JSON, field by field',
-    'monitor.about_api' => 'Several calls in sequence',
-    'monitor.about_ping' => 'Can the host be reached?',
-    'monitor.about_port' => 'Is the port open?',
-    'monitor.about_ssl' => 'How long is the certificate good for?',
-    'monitor.about_domain' => 'How long is the registration good for?',
-    'monitor.about_dns' => 'Does the record still point there?',
+    // The type picker: what each kind of check watches, and what it takes for
+    // that check to call the thing down. Same two columns as the table in the
+    // README, because the question is the same one -- which of these nine is
+    // the one I want?
+    'monitor.about_http' => 'A page over HTTP',
+    'monitor.about_keyword' => 'The wording on a page',
+    'monitor.about_endpoint' => 'A JSON API, one call',
+    'monitor.about_api' => 'A JSON API, several calls',
+    'monitor.about_ping' => 'A host answering',
+    'monitor.about_port' => 'A service listening',
+    'monitor.about_ssl' => 'A certificate and its clock',
+    'monitor.about_domain' => 'A registration',
+    'monitor.about_dns' => 'A record',
+
+    'monitor.down_http' => 'Down when the status code falls outside the expected range, a keyword is missing (or present), the TLS handshake fails, or it times out.',
+    'monitor.down_keyword' => 'Down when the words you named are missing — or, the other way round, an error phrase has appeared. Several at once, matched on the visible text rather than the markup.',
+    'monitor.down_endpoint' => 'Down when any of your assertions about the response body does not hold — queue.depth under 100, status equal to ok, items.0.state present.',
+    'monitor.down_api' => 'Down when any step in the sequence fails. Sign in, capture the token, call the endpoint it unlocks — the failure names the step.',
+    'monitor.down_ping' => 'Down when no ICMP echo comes back. Where the server may not send ICMP, it times a TCP connect instead and says so rather than pretending.',
+    'monitor.down_port' => 'Down when nothing accepts the connection, or the greeting it sends is not the one you expected.',
+    'monitor.down_ssl' => 'Down when it has expired, the chain is not trusted, it does not cover the host, the issuer changed, or it runs out sooner than you allow.',
+    'monitor.down_domain' => 'Down when the registry has no record of it, it is on hold, it changed registrar or nameservers, or it expires sooner than you allow.',
+    'monitor.down_dns' => 'Down when the name does not resolve, the record is gone, it no longer holds what you published, or two resolvers disagree about it.',
     'monitor.expiry' => 'Expires in',
     'monitor.needs_migration' => 'Waiting on a database update',
     'monitor.coming_soon' => 'Arrives in the next release',

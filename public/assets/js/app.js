@@ -159,15 +159,22 @@
     var typePicker = document.querySelector('[data-type-select]');
     if (typePicker) {
         var aboutLine = document.querySelector('[data-type-about]');
+        var downLine = document.querySelector('[data-type-down]');
 
         var syncType = function () {
             var chosen = typePicker.querySelector('input[name="type"]:checked');
             var type = chosen ? chosen.value : 'http';
 
-            // Each card carries its own line; the chosen one lends it to the
-            // space under the row.
+            // Each card carries what it watches and what counts as down; the
+            // chosen one lends both to the space under the row.
             if (aboutLine && chosen) {
                 aboutLine.textContent = chosen.getAttribute('data-about') || '';
+            }
+
+            if (downLine && chosen) {
+                var down = chosen.getAttribute('data-down') || '';
+                downLine.textContent = down;
+                downLine.hidden = down === '';
             }
 
             document.querySelectorAll('[data-type-fields]').forEach(function (block) {

@@ -953,11 +953,25 @@ a:hover { text-decoration: underline; }
     background: var(--panel);
 }
 
-/* What the chosen card means, in the space a card does not have. */
+/* What the chosen card means, in the space a card does not have: one line for
+   what the check watches, then the sentence about what makes it call the thing
+   down. Held to a readable measure, so the longer types do not run the whole
+   width of the panel. */
 .typegrid__about {
-    margin: 10px 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    max-width: 82ch;
+    margin: 12px 0 0;
     font-size: 12.5px;
+    line-height: 1.5;
     color: var(--ink-muted);
+}
+
+.typegrid__watches {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink-2);
 }
 
 .form-grid {
