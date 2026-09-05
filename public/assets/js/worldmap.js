@@ -137,28 +137,48 @@
                 // lands on the branch below, because a tap does not move.
                 pans: event.pointerType === 'mouse'
             };
-
-            if (drag.pans) {
-                if (svg.setPointerCapture) svg.setPointerCapture(event.pointerId);
-                root.setAttribute('data-wmap-panning', 'true');
-            }
         });
 
         svg.addEventListener('pointermove', function (event) {
             if (drag === null) return;
 
-            var dx = event.clientX - drag.x;
-            var dy = event.clientY - drag.y;
-            if (Math.abs(dx) > DRAG_SLOP || Math.abs(dy) > DRAG_SLOP) {
-                drag.moved = true;
+            // The button was let go somewhere we never heard about. Nothing is
+            // being dragged, whatever the last press left behind.
+            if (drag.pans && event.buttons === 0) {
+                drag = null;
+                return;
             }
+
+            if (!drag.moved) {
+                if (Math.abs(event.clientX - drag.x) <= DRAG_SLOP &&
+                    Math.abs(event.clientY - drag.y) <= DRAG_SLOP) {
+                    return;
+                }
+
+                drag.moved = true;
+
+                // The pointer is taken here rather than on the press, now that
+                // this is certainly a drag. Capturing it up front would
+                // retarget the click that follows to the map itself, and a pin
+                // would quietly stop being a link.
+                if (drag.pans) {
+                    if (svg.setPointerCapture) svg.setPointerCapture(event.pointerId);
+                    root.setAttribute('data-wmap-panning', 'true');
+
+                    // Panning starts from here, so the slop is spent rather
+                    // than arriving as a jump.
+                    drag.x = event.clientX;
+                    drag.y = event.clientY;
+                }
+            }
+
             if (!drag.pans) return;
 
             var g = geometry();
             if (g === null) return;
 
-            view.x = drag.viewX - dx / g.scale;
-            view.y = drag.viewY - dy / g.scale;
+            view.x = drag.viewX - (event.clientX - drag.x) / g.scale;
+            view.y = drag.viewY - (event.clientY - drag.y) / g.scale;
             apply();
         });
 
@@ -167,11 +187,9 @@
 
             var moved = drag.moved;
 
-            if (drag.pans) {
-                root.removeAttribute('data-wmap-panning');
-                if (svg.hasPointerCapture && svg.hasPointerCapture(event.pointerId)) {
-                    svg.releasePointerCapture(event.pointerId);
-                }
+            root.removeAttribute('data-wmap-panning');
+            if (svg.hasPointerCapture && svg.hasPointerCapture(event.pointerId)) {
+                svg.releasePointerCapture(event.pointerId);
             }
 
             drag = null;

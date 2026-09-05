@@ -45,13 +45,18 @@ final class MonitorsController extends Controller
         $monitors = Monitors::visible($filters);
         $ids = array_map(static fn (array $m): int => (int) $m['id'], $monitors);
 
+        // Arriving from a pin on the map, the page should say which place it
+        // is showing. The filter row says so too, but the heading is what you
+        // read first.
+        $place = $filters['location'] > 0 ? Locations::findVisible($filters['location']) : null;
+
         return $this->view($request, 'pages/monitors', [
-            'title' => 'Monitors',
+            'title' => $place === null ? 'Monitors' : 'Monitors at ' . $place['name'],
             'monitors' => $monitors,
             'tapes' => Monitors::tapes($ids, 48),
             'filters' => $filters,
             'groups' => Groups::assignable(),
-            'locations' => Locations::all(),
+            'locations' => Locations::filterable(),
             'counts' => Monitors::statusCounts(),
         ]);
     }

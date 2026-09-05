@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain;
 
+use App\Core\Auth;
 use App\Core\Db;
 use Throwable;
 
@@ -54,6 +55,51 @@ final class Locations
              FROM {{locations}} l
              ORDER BY l.`name`'
         );
+    }
+
+    /**
+     * A location the signed-in user can actually see something at.
+     *
+     * Naming a place to somebody who may look at nothing there would give away
+     * that it exists, which is the one thing the scope is for. Whoever keeps
+     * the list is a different matter: they read the whole of it anyway.
+     *
+     * @return array<string,mixed>|null
+     */
+    public static function findVisible(int $id): ?array
+    {
+        if (!self::isReady()) {
+            return null;
+        }
+
+        if (Auth::can('locations.manage')) {
+            return self::find($id);
+        }
+
+        [$scope, $params] = MonitorScope::visible('m');
+        $params['location'] = $id;
+
+        return Db::selectOne(
+            'SELECT l.* FROM {{locations}} l
+             WHERE l.`id` = :location AND EXISTS (
+                 SELECT 1 FROM {{monitors}} m
+                 WHERE m.`location_id` = l.`id` AND (' . $scope . ')
+             )
+             LIMIT 1',
+            $params
+        );
+    }
+
+    /**
+     * The places worth offering as a filter on the monitor list. Same rule as
+     * above: everything for whoever keeps the list, and for everyone else only
+     * the places they can see something at.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public static function filterable(): array
+    {
+        return Auth::can('locations.manage') ? self::all() : self::overview();
     }
 
     /** @return array<string,mixed>|null */
