@@ -360,10 +360,36 @@ cat "$WORK/report.json"
 CASEEOF
 )
 case "$got" in
-    'exit=0 {"system":{"hostname":"box","agent_version":"1.1.0"},"metrics":{},"collected":[],'*'"self_update":true,"results":[]}')
+    'exit=0 {"system":{"hostname":"box","agent_version":"1.1.0"},"metrics":{},"collected":[],'*'"self_update":true,"allow":[],"results":[]}')
         ok 'a whole report is built and says what it consents to' ;;
     *) bad 'a whole report is built and says what it consents to' 'a complete document, exit 0' "$got" ;;
 esac
+
+# The consent list is what the interface greys a button on, so an empty
+# MONITOR_ALLOW has to come back as an empty array rather than as nothing at
+# all: absent means "this agent is too old to say", which is not the same
+# answer and is not shown the same way.
+for allow_case in ':[]' 'updates:["updates"]' 'reboot:["reboot"]' 'updates,reboot:["updates","reboot"]' 'reboot,updates:["updates","reboot"]'; do
+    allow_set="${allow_case%%:*}"
+    allow_want="${allow_case#*:}"
+
+    # Unquoted, so the value under test lands in the body. Everything the
+    # agent needs to expand for itself is escaped.
+    got=$(agent_case <<CASEEOF
+system_json() { printf '"system":{}'; }
+metrics_json() { printf '"metrics":{}'; }
+MONITOR_COLLECT=""
+MONITOR_ALLOW="$allow_set"
+build_report ""
+sed -n 's/.*\("allow":\[[^]]*\]\).*/\1/p' "\$WORK/report.json"
+CASEEOF
+)
+    if [ "$got" = "\"allow\":$allow_want" ]; then
+        ok "MONITOR_ALLOW='$allow_set' is reported as $allow_want"
+    else
+        bad "MONITOR_ALLOW='$allow_set' is reported as $allow_want" "\"allow\":$allow_want" "$got"
+    fi
+done
 
 got=$(agent_case <<'CASEEOF'
 printf '{"system":{"hostname":"box"}}' > "$WORK/whole"
@@ -622,7 +648,7 @@ fi
 echo
 echo 'The two agents move together'
 
-# One version between them, so "this machine is on 1.5.0" means the same thing
+# One version between them, so "this machine is on 1.6.0" means the same thing
 # whichever agent it is running. A fix to one is a release of both, even when
 # the other needed nothing -- otherwise the numbers drift and stop meaning
 # anything, and Monitor offers a version to a platform that never got it.

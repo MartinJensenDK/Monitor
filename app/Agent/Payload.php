@@ -95,6 +95,13 @@ final class Payload
             // commands that change it.
             'self_update' => isset($raw['self_update']) ? self::bool($raw['self_update']) : null,
 
+            // The rest of what this machine consents to, from the same place
+            // and for the same reason: MONITOR_ALLOW, decided by whoever
+            // installed it. Null means the agent said nothing -- an older one
+            // that has no opinion to give -- and that is not the same as
+            // refusing, so it is kept distinct all the way to the interface.
+            'allow' => self::allowList($raw['allow'] ?? null),
+
             // What the agent was installed to do. It seeds the interval at
             // enrolment and is ignored on every report after that -- the site
             // owns the schedule from then on. Clamped either way, so a broken
@@ -309,6 +316,30 @@ final class Payload
     }
 
     /** @return array<int,string> */
+    /**
+     * What the machine says it may be asked to do.
+     *
+     * @return array<string,bool>|null null when the agent did not say
+     */
+    private static function allowList(mixed $value): ?array
+    {
+        if (!is_array($value)) {
+            return null;
+        }
+
+        $said = [];
+        foreach ($value as $item) {
+            if (is_string($item)) {
+                $said[] = strtolower(trim($item));
+            }
+        }
+
+        return [
+            'updates' => in_array('updates', $said, true),
+            'reboot' => in_array('reboot', $said, true),
+        ];
+    }
+
     private static function collected(mixed $value): array
     {
         $allowed = ['disks', 'updates', 'packages', 'services', 'ports'];

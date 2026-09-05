@@ -29,10 +29,10 @@ LC_ALL=C
 export LC_ALL
 
 # The two agents carry one version between them and move together, so that
-# "this machine is on 1.5.0" means the same thing whichever it is running. A
+# "this machine is on 1.6.0" means the same thing whichever it is running. A
 # change to one is a release of both, even when the other needed nothing:
 # tools/check-agent.sh and check-agent.ps1 both refuse to pass if they differ.
-AGENT_VERSION="1.5.0"
+AGENT_VERSION="1.6.0"
 CONF="${MONITOR_CONF:-/etc/monitor-agent/agent.conf}"
 
 MONITOR_URL=""
@@ -979,6 +979,19 @@ build_report() {
         # Whether this machine consents to the agent being replaced from there.
         # Monitor shows it and honours it; it cannot change it.
         printf ',"self_update":%s' "$([ "$MONITOR_SELF_UPDATE" = "1" ] && echo true || echo false)"
+        # And the rest of what it consents to, so Monitor can say up front
+        # which of its buttons this machine is going to refuse instead of
+        # leaving somebody to find out by pressing one.
+        printf ',"allow":['
+        allow_first=1
+        for consent in updates reboot; do
+            if allows "$consent"; then
+                [ "$allow_first" -eq 1 ] || printf ','
+                printf '"%s"' "$consent"
+                allow_first=0
+            fi
+        done
+        printf ']'
         printf ',"results":[%s]' "$results"
         printf '}'
     } > "$WORK/report.json"

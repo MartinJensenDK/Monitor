@@ -295,6 +295,8 @@ return [
 
     'device.commands' => 'Ask it to do something',
     'device.commands_hint' => 'Queued now, carried out at the next check-in. The machine refuses anything it was not installed to allow.',
+    'device.command_refused' => 'Installed without :flag, so this machine will refuse.',
+    'device.command_refused_pinned' => 'Installed with :flag, so this machine will not replace its own agent.',
     'device.commands_off' => 'Commands are switched off for this machine.',
     'device.confirm_command' => ':command on this machine?',
     'device.log' => 'What it is doing',

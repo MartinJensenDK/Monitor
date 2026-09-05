@@ -62,6 +62,47 @@ final class DeviceCommands
         ];
     }
 
+    /**
+     * Which commands this machine would refuse, and the flag that would change
+     * its mind.
+     *
+     * The three commands that change a machine need consent given on the
+     * machine, at install time, and it cannot be granted from here. Until the
+     * agent started saying what it had consented to, this side could not know,
+     * so the only way to find out was to ask for something and be turned down.
+     *
+     * A machine that has not said is left alone. An agent too old to send its
+     * consent has not refused anything, and showing "will refuse" on a guess
+     * would be worse than the silence it replaced.
+     *
+     * @param array<string,mixed> $device
+     * @return array<string,string> command name => the flag it was installed without
+     */
+    public static function withheld(array $device): array
+    {
+        $windows = (string) ($device['os_family'] ?? '') === 'windows';
+        $withheld = [];
+
+        $refuses = static fn (string $column): bool =>
+            array_key_exists($column, $device)
+            && $device[$column] !== null
+            && (int) $device[$column] !== 1;
+
+        if ($refuses('allow_updates')) {
+            $withheld['install_updates'] = $windows ? '-AllowUpdates' : '--allow-updates';
+        }
+        if ($refuses('allow_reboot')) {
+            $withheld['reboot'] = $windows ? '-AllowReboot' : '--allow-reboot';
+        }
+        // The odd one out: this one is refused by a flag having been given
+        // rather than withheld, so it names the flag that is in the way.
+        if ($refuses('self_update')) {
+            $withheld['update_agent'] = $windows ? '-NoSelfUpdate' : '--no-self-update';
+        }
+
+        return $withheld;
+    }
+
     public static function exists(string $command): bool
     {
         return isset(self::catalogue()[$command]);

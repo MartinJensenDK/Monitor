@@ -401,17 +401,32 @@ $facts = array_filter([
                                     ? t('device.commands_hint_live', ['poll' => format_duration((int) $device['poll_seconds'])])
                                     : t('device.commands_hint')) ?>
                             </p>
+                            <?php
+                            // What this machine has already said it will not
+                            // do. Pressing one of these only ever produced a
+                            // refusal, so the button says so instead of
+                            // waiting to be pressed.
+                            $withheld = App\Domain\DeviceCommands::withheld($device);
+                            ?>
                             <div class="stack stack--tight">
                                 <?php foreach ($catalogue as $name => $meta): ?>
                                     <?php if ($meta['changes'] && !can('devices.command_changes')) { continue; } ?>
+                                    <?php $blocked = $withheld[$name] ?? null; ?>
                                     <form method="post" action="/devices/<?= e($uuid) ?>/commands" class="cmdrow"
-                                          <?= $meta['changes'] ? 'data-confirm="' . e(t('device.confirm_command', ['command' => $meta['label']])) . '"' : '' ?>>
+                                          <?= $meta['changes'] && $blocked === null ? 'data-confirm="' . e(t('device.confirm_command', ['command' => $meta['label']])) . '"' : '' ?>>
                                         <?= csrf_field() ?>
                                         <input type="hidden" name="command" value="<?= e((string) $name) ?>">
-                                        <button class="btn btn--sm <?= $meta['changes'] ? 'btn--danger' : '' ?>" type="submit">
+                                        <button class="btn btn--sm <?= $meta['changes'] ? 'btn--danger' : '' ?>" type="submit"
+                                                <?= $blocked === null ? '' : 'disabled' ?>>
                                             <?= icon((string) $meta['icon']) ?><?= e((string) $meta['label']) ?>
                                         </button>
-                                        <span class="cmdrow__hint"><?= e((string) $meta['hint']) ?></span>
+                                        <span class="cmdrow__hint">
+                                            <?= $blocked === null
+                                                ? e((string) $meta['hint'])
+                                                : e($name === 'update_agent'
+                                                    ? t('device.command_refused_pinned', ['flag' => $blocked])
+                                                    : t('device.command_refused', ['flag' => $blocked])) ?>
+                                        </span>
                                     </form>
                                 <?php endforeach; ?>
                             </div>

@@ -85,9 +85,16 @@ final class Ingest
         ];
 
         // Consent to being updated from here belongs to the machine, so it is
-        // taken from the report rather than settable on this side.
+        // taken from the report rather than settable on this side. The same
+        // goes for the other two, which is why an agent that says nothing
+        // leaves them as they were rather than clearing them: silence is not
+        // a withdrawal.
         if ($payload['self_update'] !== null) {
             $columns['self_update'] = $payload['self_update'] ? 1 : 0;
+        }
+        if ($payload['allow'] !== null) {
+            $columns['allow_updates'] = $payload['allow']['updates'] ? 1 : 0;
+            $columns['allow_reboot'] = $payload['allow']['reboot'] ? 1 : 0;
         }
 
         // A new version means the agent replaced itself, or somebody

@@ -39,10 +39,10 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # The two agents carry one version between them and move together, so that
-# "this machine is on 1.5.0" means the same thing whichever it is running.
+# "this machine is on 1.6.0" means the same thing whichever it is running.
 # A change to one is a release of both, even when the other needed nothing:
 # tools/check-agent.sh and check-agent.ps1 both refuse to pass if they differ.
-$AgentVersion = '1.5.0'
+$AgentVersion = '1.6.0'
 
 # What the last failure was. These are how the installer tells "this machine is
 # not who it says it is" from "that did not get through" -- they are not the
@@ -1020,6 +1020,10 @@ function Build-Report {
     # Whether this machine consents to the agent being replaced from there.
     # Monitor shows it and honours it; it cannot change it.
     $report['self_update'] = ($Config.MONITOR_SELF_UPDATE -ne '0')
+    # And the rest of what it consents to, so Monitor can say up front which of
+    # its buttons this machine is going to refuse instead of leaving somebody
+    # to find out by pressing one.
+    $report['allow'] = @(@('updates', 'reboot') | Where-Object { Test-Allow $_ })
     $report['results'] = $Results
 
     return $report

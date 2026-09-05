@@ -241,6 +241,14 @@ the machine has to have been installed to allow that particular thing —
 installed with `--no-self-update`. That last condition is decided on the
 machine, by whoever installed the agent, and cannot be granted from here.
 
+The agent reports which of them it has consented to, so the interface can say so
+before you press: a button the machine is going to refuse is greyed out and
+names the flag it was installed without, spelled the way that machine's
+installer spells it. This is a courtesy, not the lock — the lock is on the
+machine, and a request that gets there anyway is still refused there. An agent
+too old to send its consent has not refused anything, so nothing is greyed out
+until a machine has actually said.
+
 With the live channel on, a queued command is collected within its cadence --
 seconds, not minutes -- and the agent reports immediately afterwards, so the
 outcome and the picture it produced arrive together.
@@ -447,7 +455,7 @@ one idea of sharing, so a new page cannot invent a second one.
 ## One version, two agents
 
 The Linux and Windows agents carry the same version number and are released
-together, so "this machine is on 1.5.0" means the same thing whichever one it
+together, so "this machine is on 1.6.0" means the same thing whichever one it
 is running. A fix to one is a release of both, even when the other needed
 nothing — otherwise the numbers drift and stop meaning anything, and this
 server ends up offering a version to a platform that never got it. Both check

@@ -282,6 +282,8 @@ return [
 
     'device.commands' => 'Bed den om noget',
     'device.commands_hint' => 'Sættes i kø nu og udføres ved næste indtjek. Maskinen afviser alt, den ikke er installeret til at tillade.',
+    'device.command_refused' => 'Installeret uden :flag, så maskinen vil afvise det.',
+    'device.command_refused_pinned' => 'Installeret med :flag, så maskinen udskifter ikke sin egen agent.',
     'device.commands_off' => 'Kommandoer er slået fra for denne maskine.',
     'device.confirm_command' => ':command på denne maskine?',
     'device.log' => 'Hvad den laver',
