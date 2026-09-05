@@ -181,7 +181,7 @@ Five things, and only five:
 | | |
 |---|---|
 | **Report now** | Sends a fresh report at the next check-in instead of waiting out the interval |
-| **Refresh update list** | Re-reads what the package manager has available. Installs nothing |
+| **Check for updates** | Re-reads what the package manager has available. Installs nothing |
 | **Update the agent** | Reinstalls the agent from the version this server holds |
 | **Install updates** | Applies the pending updates |
 | **Restart** | Restarts the machine |

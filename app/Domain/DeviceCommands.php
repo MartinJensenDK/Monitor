@@ -36,7 +36,7 @@ final class DeviceCommands
                 'icon' => 'refresh',
             ],
             'refresh_updates' => [
-                'label' => 'Refresh update list',
+                'label' => 'Check for updates',
                 'hint' => 'Re-reads what the package manager has available. Installs nothing.',
                 'changes' => false,
                 'icon' => 'history',

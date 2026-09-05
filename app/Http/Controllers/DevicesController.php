@@ -281,7 +281,22 @@ final class DevicesController extends Controller
             'info'
         );
 
-        $this->success(DeviceCommands::label($command) . ' queued. It runs at the next check-in.');
+        // A queued command against a machine nobody has heard from looks
+        // exactly like a queued command against one that is about to run it,
+        // which is how "I pressed the button and nothing happened" happens.
+        if ((string) $device['status'] === 'online') {
+            $this->success(sprintf(
+                '%s queued. It runs at the next check-in.',
+                DeviceCommands::label($command)
+            ));
+        } else {
+            $this->warn(sprintf(
+                '%s queued, but %s was last heard from %s. It will wait until the machine comes back, and expires in an hour.',
+                DeviceCommands::label($command),
+                $device['name'],
+                $device['last_seen_at'] === null ? 'when it enrolled' : format_since((string) $device['last_seen_at'])
+            ));
+        }
 
         return $this->redirect('/devices/' . $device['uuid']);
     }
