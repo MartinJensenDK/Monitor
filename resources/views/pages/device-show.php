@@ -341,19 +341,28 @@ $facts = array_filter([
                         <?php
                         // What this server would hand out, next to what the
                         // machine is running: the two disagreeing is the whole
-                        // of why an update is or is not on its way. A machine
-                        // that has never said which agent it runs is not
-                        // behind, it is unknown, and says nothing.
+                        // of why an update is or is not on its way. Compared
+                        // as versions rather than as strings, so a machine
+                        // that is ahead of this server -- which is what a
+                        // rolled-back script here looks like -- is not told
+                        // to fetch an update that would take it backwards. A
+                        // machine that has never said which agent it runs is
+                        // not behind, it is unknown, and says nothing.
                         $running = (string) ($device['agent_version'] ?? '');
                         $offered = App\Agent\Scripts::version((string) $device['os_family']);
-                        $behind = $running !== '' && $offered !== '0.0.0' && $running !== $offered;
+                        $compared = $running !== '' && $offered !== '0.0.0'
+                            ? version_compare($running, $offered)
+                            : 0;
                         ?>
                         <dd>
                             <?= e($running !== '' ? $running : '—') ?>
-                            <?php if ($behind): ?>
+                            <?php if ($compared < 0): ?>
+                                <span class="pill pill--degraded"><?= e(t('device.agent_update_ready', ['version' => $offered])) ?></span>
                                 <span class="muted block"><?= e((int) $device['self_update'] === 1
                                     ? t('device.agent_updating', ['version' => $offered])
                                     : t('device.agent_behind', ['version' => $offered])) ?></span>
+                            <?php elseif ($compared > 0): ?>
+                                <span class="muted block"><?= e(t('device.agent_ahead', ['version' => $offered])) ?></span>
                             <?php elseif ((int) $device['self_update'] !== 1): ?>
                                 <span class="muted block"><?= e(t('device.agent_pinned')) ?></span>
                             <?php endif; ?>

@@ -241,9 +241,11 @@ return [
     'device.address' => 'Adresse',
     'device.seen_from' => 'Set fra',
     'device.agent' => 'Agent',
+    'device.agent_update_ready' => ':version tilgængelig',
     'device.agent_updating' => 'Denne server har :version og tilbyder den, hver gang maskinen melder sig.',
     'device.agent_behind' => 'Denne server har :version. Maskinen er installeret med --no-self-update, så kør installationsprogrammet på den.',
     'device.agent_pinned' => 'Installeret med --no-self-update: den udskifter ikke sig selv.',
+    'device.agent_ahead' => 'Nyere end den :version, denne server har, så der er ikke noget at tilbyde den.',
     'device.enrolled' => 'Tilmeldt',
     'device.token' => 'Token',
 

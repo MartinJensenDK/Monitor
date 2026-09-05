@@ -2280,6 +2280,9 @@ code {
 
 .facts dt { color: var(--ink-muted); }
 .facts dd { margin: 0; min-width: 0; }
+/* A pill sitting beside a fact, not on a line of its own. */
+.facts dd .pill { margin-left: 6px; vertical-align: 1px; }
+.facts dd .block { margin-top: 3px; }
 
 .table-wrap--tall { max-height: 420px; overflow-y: auto; }
 .table--compact td { padding-top: 6px; padding-bottom: 6px; }
