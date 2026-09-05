@@ -114,6 +114,10 @@ final class SettingsController extends Controller
                 ? (string) $request->input('agent_default_log_level')
                 : 'info',
             'agent_default_commands' => $request->boolean('agent_default_commands') ? '1' : '0',
+            'agent_update_retry' => (string) max(
+                AgentPolicy::MIN_UPDATE_RETRY,
+                min(AgentPolicy::MAX_UPDATE_RETRY, $request->int('agent_update_retry', 3600))
+            ),
             'agent_updates_enabled' => $request->boolean('agent_updates_enabled') ? '1' : '0',
             'agent_commands_enabled' => $request->boolean('agent_commands_enabled') ? '1' : '0',
             'retention_device_metrics_days' => (string) max(1, min(730, $request->int('retention_device_metrics_days', 30))),

@@ -42,6 +42,7 @@ final class Settings
         'agent_default_poll' => '15',
         'agent_default_log_level' => 'info',
         'agent_default_commands' => '1',
+        'agent_update_retry' => '3600',
         'agent_updates_enabled' => '1',
         'agent_commands_enabled' => '1',
         'mail_driver' => 'smtp',

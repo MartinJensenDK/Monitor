@@ -156,6 +156,7 @@ final class AgentApiController extends Controller
             'interval' => (int) ($fresh['interval_seconds'] ?? $device['interval_seconds']),
             'poll' => (int) ($fresh['poll_seconds'] ?? $device['poll_seconds']),
             'level' => (string) ($fresh['log_level'] ?? $device['log_level']),
+            'update_retry' => AgentPolicy::updateRetry(),
             'report' => false,
             'agent' => $this->manifest((string) ($fresh['os_family'] ?? $device['os_family'])),
             'commands' => $commands,
@@ -211,6 +212,11 @@ final class AgentApiController extends Controller
             'poll' => (int) $device['poll_seconds'],
             'interval' => (int) $device['interval_seconds'],
             'level' => (string) $device['log_level'],
+            // How long to leave it before trying an update again. Sent with
+            // every answer like the cadences, so shortening it in the
+            // interface reaches a machine on its next knock rather than
+            // waiting out the window it is meant to change.
+            'update_retry' => AgentPolicy::updateRetry(),
             'report' => Devices::reportDue($device),
             // What the agent should be running. It compares this with its own
             // version and replaces itself if they differ -- which is why the

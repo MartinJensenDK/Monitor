@@ -238,6 +238,15 @@ $insecurely = $existingConfig['MONITOR_INSECURE'] -eq '1'
 if ($Insecure) { $insecurely = $true }
 if ($NoInsecure) { $insecurely = $false }
 
+# Monitor owns this one, so there is no switch for it -- but a reinstall is how
+# an update arrives, and dropping it here would put every updated machine back
+# on the default until its next answer.
+$updateRetry = 3600
+if (-not [int]::TryParse([string]$existingConfig['MONITOR_UPDATE_RETRY'], [ref]$updateRetry)) {
+    $updateRetry = 3600
+}
+if ($updateRetry -lt 60) { $updateRetry = 3600 }
+
 $reported = $false
 
 if (-not $Key -and -not $existingToken) {
@@ -339,6 +348,11 @@ MONITOR_ALLOW="$($allow -join ',')"
 # here and cannot be granted from there. Set it to 0 and updates arrive by
 # running the installer again, by hand.
 MONITOR_SELF_UPDATE="$(if ($selfUpdating) { '1' } else { '0' })"
+
+# How long to leave it between attempts at replacing this agent. Monitor sets
+# this from Settings -> Agent and it arrives with every answer; what is here is
+# what the last answer said, so a fresh process starts with it.
+MONITOR_UPDATE_RETRY="$updateRetry"
 
 # Skip TLS verification. Only for a Monitor install using a self-signed
 # certificate, and it does mean the token can be read by anything in the path.

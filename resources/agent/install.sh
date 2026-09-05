@@ -178,7 +178,7 @@ fi
 # still the same machine, with the same opinion about what may be done to it.
 CONF_SEEN="0"
 CONF_URL=""; CONF_INTERVAL=""; CONF_POLL=""; CONF_COLLECT=""
-CONF_LEVEL=""; CONF_ALLOW=""; CONF_SELF_UPDATE=""; CONF_INSECURE=""
+CONF_LEVEL=""; CONF_ALLOW=""; CONF_SELF_UPDATE=""; CONF_INSECURE=""; CONF_RETRY=""
 if [ -r "$CONF" ] && [ -n "$(conf_value MONITOR_URL)" ]; then
     CONF_SEEN="1"
     CONF_URL="$(conf_value MONITOR_URL)"
@@ -189,6 +189,11 @@ if [ -r "$CONF" ] && [ -n "$(conf_value MONITOR_URL)" ]; then
     CONF_ALLOW="$(conf_value MONITOR_ALLOW)"
     CONF_SELF_UPDATE="$(sane_flag "$(conf_value MONITOR_SELF_UPDATE)")"
     CONF_INSECURE="$(sane_flag "$(conf_value MONITOR_INSECURE)")"
+
+    # Monitor owns this one, so there is no argument for it -- but a reinstall
+    # is how an update arrives, and dropping it here would put every updated
+    # machine back on the default until its next answer.
+    CONF_RETRY="$(sane_seconds "$(conf_value MONITOR_UPDATE_RETRY)" 60)"
 
     # Zero is a legitimate poll -- it means the live channel is off -- so it
     # cannot go through sane_seconds with a floor of 5.
@@ -204,6 +209,7 @@ POLL="${ARG_POLL:-${CONF_POLL:-$DEFAULT_POLL}}"
 LEVEL="${ARG_LEVEL:-${CONF_LEVEL:-$DEFAULT_LEVEL}}"
 SELF_UPDATE="${ARG_SELF_UPDATE:-${CONF_SELF_UPDATE:-$DEFAULT_SELF_UPDATE}}"
 INSECURE="${ARG_INSECURE:-${CONF_INSECURE:-0}}"
+UPDATE_RETRY="${CONF_RETRY:-3600}"
 
 # Collecting nothing is a real answer, so this one cannot lean on emptiness.
 if [ "$ARG_COLLECT_SET" = "1" ]; then
@@ -321,6 +327,11 @@ MONITOR_ALLOW="$ALLOW"
 # here and cannot be granted from there. Set it to 0 and updates arrive by
 # running the installer again, by hand.
 MONITOR_SELF_UPDATE="$SELF_UPDATE"
+
+# How long to leave it between attempts at replacing this agent. Monitor sets
+# this from Settings -> Agent and it arrives with every answer; what is here is
+# what the last answer said, so a fresh process starts with it.
+MONITOR_UPDATE_RETRY="$UPDATE_RETRY"
 
 # Skip TLS verification. Only for a Monitor install using a self-signed
 # certificate, and it does mean the token can be read by anything in the path.

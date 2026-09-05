@@ -181,6 +181,9 @@ agent makes, so turning one off takes effect on the next knock, fleet-wide:
   Queued commands wait where they are and expire on their own hour, so this is a
   pause and not a cancellation.
 
+Alongside them is **how long an agent leaves it between update attempts**, which
+travels the same way and is described under Updating the agent below.
+
 Neither switch can make a machine do anything. They only decide whether it is
 asked, which is this side of the two-lock arrangement described under Security.
 
@@ -335,10 +338,24 @@ setting back out of the machine's own config and writes it again unchanged, so
 an update cannot quietly hand back a permission the machine was deliberately
 installed without.
 
+An agent that has just tried will not try again for a while — an hour by
+default, and whatever **Settings → Agent** says otherwise. The throttle is
+there so that a server announcing a version that never arrives cannot have a
+whole fleet reinstalling every fifteen seconds. It is a floor on retries rather
+than a schedule, and it is invisible in ordinary use: an update that works makes
+the versions agree, so nothing is retried. The one time it is felt is two
+releases inside one window, which is a thing that happens while somebody is
+working on the agent — hence the setting. It never goes below a minute, because
+"try again immediately, forever" is the failure it exists to prevent, and the
+value reaches a machine the same way the cadences do, with the next answer it
+gets.
+
 It happens at the end of a run, once there is nothing else to do, and the next
 run — a minute later — is the new agent. **Update the agent** in the interface
-does the same thing on demand, and reinstalls even when the versions already
-agree, which is how a damaged agent gets repaired without going to it.
+does the same thing on demand, ignores the throttle outright, and reinstalls
+even when the versions already agree — which is how a damaged agent gets
+repaired without going to it, and how a machine is moved on to a version
+released inside the retry window.
 
 A machine installed with `--no-self-update` does none of this and says so on its
 page, as does a site with *Offer the agent this server holds* switched off — in
@@ -430,7 +447,7 @@ one idea of sharing, so a new page cannot invent a second one.
 ## One version, two agents
 
 The Linux and Windows agents carry the same version number and are released
-together, so "this machine is on 1.3.0" means the same thing whichever one it
+together, so "this machine is on 1.4.0" means the same thing whichever one it
 is running. A fix to one is a release of both, even when the other needed
 nothing — otherwise the numbers drift and stop meaning anything, and this
 server ends up offering a version to a platform that never got it. Both check

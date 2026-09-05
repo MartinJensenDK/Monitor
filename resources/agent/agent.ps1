@@ -39,10 +39,10 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # The two agents carry one version between them and move together, so that
-# "this machine is on 1.3.0" means the same thing whichever it is running.
+# "this machine is on 1.4.0" means the same thing whichever it is running.
 # A change to one is a release of both, even when the other needed nothing:
 # tools/check-agent.sh and check-agent.ps1 both refuse to pass if they differ.
-$AgentVersion = '1.3.0'
+$AgentVersion = '1.4.0'
 
 # What the last failure was. These are how the installer tells "this machine is
 # not who it says it is" from "that did not get through" -- they are not the
@@ -184,6 +184,7 @@ function Read-Config {
         MONITOR_LEVEL     = 'info'
         MONITOR_ALLOW     = ''
         MONITOR_SELF_UPDATE = '1'
+        MONITOR_UPDATE_RETRY = '3600'
         MONITOR_INSECURE  = '0'
     }
 
@@ -241,6 +242,11 @@ MONITOR_ALLOW="$($Config.MONITOR_ALLOW)"
 # here and cannot be granted from there. Set it to 0 and updates arrive by
 # running the installer again, by hand.
 MONITOR_SELF_UPDATE="$($Config.MONITOR_SELF_UPDATE)"
+
+# How long to leave it between attempts at replacing this agent. Monitor sets
+# this from Settings -> Agent and it arrives with every answer; what is here is
+# what the last answer said, so a fresh process starts with it.
+MONITOR_UPDATE_RETRY="$($Config.MONITOR_UPDATE_RETRY)"
 
 # Skip TLS verification. Self-signed certificates only.
 MONITOR_INSECURE="$($Config.MONITOR_INSECURE)"
@@ -832,7 +838,23 @@ function Write-CommandLine {
 # How long to leave it after a failed attempt. Without this, a server stuck
 # announcing a version that never arrives would have every machine in the fleet
 # reinstalling every fifteen seconds.
-$UpdateRetrySeconds = 3600
+#
+# Monitor sets it, in Settings -> Agent, and it arrives with every answer. What
+# is left here is the floor and the fallback: a minute is the shortest value
+# that is still a throttle rather than a loop, and a machine that has never had
+# an answer out of this server behaves the way it always did.
+$UpdateRetryFloor = 60
+$UpdateRetryDefault = 3600
+
+function Get-UpdateRetrySeconds {
+    $seconds = 0
+    if (-not [int]::TryParse([string]$Config.MONITOR_UPDATE_RETRY, [ref]$seconds)) {
+        $seconds = $UpdateRetryDefault
+    }
+    if ($seconds -lt $UpdateRetryFloor) { $seconds = $UpdateRetryFloor }
+
+    return $seconds
+}
 
 # The version Monitor says this machine should be running, out of the answer it
 # just gave. Read from inside the "agent" object rather than by looking for
@@ -851,7 +873,7 @@ function Test-UpdateAttemptedRecently {
 
     try {
         $last = [datetime]::Parse((Get-Content -LiteralPath $stamp -Raw).Trim(), [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
-        return ((Get-Date).ToUniversalTime() - $last).TotalSeconds -lt $UpdateRetrySeconds
+        return ((Get-Date).ToUniversalTime() - $last).TotalSeconds -lt (Get-UpdateRetrySeconds)
     } catch {
         return $false
     }
@@ -867,8 +889,9 @@ function Invoke-SelfUpdate {
     }
 
     if (-not $Force -and (Test-UpdateAttemptedRecently)) {
-        Write-AgentLog -Level 'debug' -Message "$Reason Not trying again yet; the last attempt was less than an hour ago."
-        return @{ ok = $false; exit_code = 1; output = ''; error = 'An update was attempted less than an hour ago.' }
+        $window = Get-UpdateRetrySeconds
+        Write-AgentLog -Level 'debug' -Message "$Reason Not trying again yet; the last attempt was less than ${window}s ago."
+        return @{ ok = $false; exit_code = 1; output = ''; error = "An update was attempted less than ${window}s ago." }
     }
 
     try {
@@ -1116,6 +1139,16 @@ function Update-Cadences {
         $Config.MONITOR_LEVEL = $Matches[1]
         $script:LevelFloor = Get-LevelRank $Config.MONITOR_LEVEL
         Write-AgentLog -Level 'info' -Message "Monitor set the log level to $($Config.MONITOR_LEVEL)."
+        $rewrite = $true
+    }
+
+    # How long to leave it between update attempts is Monitor's to decide, for
+    # the same reason the log level is: it changes when this machine tries, not
+    # what it is willing to do. Kept in the config so a fresh process has it
+    # before its first answer arrives.
+    if ($Body -match '"update_retry":\s*(\d+)' -and $Matches[1] -ne $Config.MONITOR_UPDATE_RETRY) {
+        $Config.MONITOR_UPDATE_RETRY = $Matches[1]
+        Write-AgentLog -Level 'info' -Message "Monitor set the update retry to $(Get-UpdateRetrySeconds)s."
         $rewrite = $true
     }
 

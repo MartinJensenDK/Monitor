@@ -318,9 +318,26 @@ $tabs = [
                 <div class="panel__head"><h2>What this server offers the fleet</h2></div>
                 <div class="panel__body">
                     <p class="mt-0 muted">
-                        Read on every request an agent makes, so switching one off reaches every machine on its next
-                        knock. Neither can make a machine do anything — they only decide whether it is asked.
+                        All three are read on every request an agent makes, so a change here reaches every machine on
+                        its next knock. None of them can make a machine do anything — they decide what it is offered,
+                        and how often it may try.
                     </p>
+
+                    <div class="form-grid" style="margin-top:14px;">
+                        <div class="field">
+                            <label class="field__label" for="agent_update_retry">Leave it this long between update attempts</label>
+                            <input class="input num" id="agent_update_retry" name="agent_update_retry" type="number"
+                                   min="<?= App\Domain\AgentPolicy::MIN_UPDATE_RETRY ?>" max="<?= App\Domain\AgentPolicy::MAX_UPDATE_RETRY ?>" step="60"
+                                   value="<?= e($settings['agent_update_retry']) ?>">
+                            <span class="field__hint">
+                                Seconds. A floor on retries, not a schedule: an update that works makes the versions
+                                agree, so nothing is retried and this never comes up. It is felt when two versions are
+                                released inside one window — shorten it while you are working on the agent, and put it
+                                back afterwards. <strong>Update the agent</strong> on a machine's own page ignores it
+                                entirely.
+                            </span>
+                        </div>
+                    </div>
 
                     <div class="stack stack--tight" style="margin-top:14px;">
                         <label class="check">

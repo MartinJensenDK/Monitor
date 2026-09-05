@@ -29,10 +29,10 @@ LC_ALL=C
 export LC_ALL
 
 # The two agents carry one version between them and move together, so that
-# "this machine is on 1.3.0" means the same thing whichever it is running. A
+# "this machine is on 1.4.0" means the same thing whichever it is running. A
 # change to one is a release of both, even when the other needed nothing:
 # tools/check-agent.sh and check-agent.ps1 both refuse to pass if they differ.
-AGENT_VERSION="1.3.0"
+AGENT_VERSION="1.4.0"
 CONF="${MONITOR_CONF:-/etc/monitor-agent/agent.conf}"
 
 MONITOR_URL=""
@@ -45,6 +45,7 @@ MONITOR_ALLOW=""
 MONITOR_INSECURE="0"
 MONITOR_SELF_UPDATE="1"
 MONITOR_LEVEL="info"
+MONITOR_UPDATE_RETRY="3600"
 
 # Where the agent writes what it did. The outbox alongside it holds lines that
 # have not reached the server yet, so a spell offline does not lose them.
@@ -792,7 +793,22 @@ run_command() {
 # How long to leave it after a failed attempt. Without this, a server stuck
 # announcing a version that never arrives would have every machine in the fleet
 # reinstalling every fifteen seconds.
-UPDATE_RETRY_SECONDS=3600
+#
+# Monitor sets it, in Settings -> Agent, and it arrives with every answer. What
+# is left here is the floor and the fallback: a minute is the shortest value
+# that is still a throttle rather than a loop, and a machine that has never had
+# an answer out of this server behaves the way it always did.
+UPDATE_RETRY_FLOOR=60
+UPDATE_RETRY_DEFAULT=3600
+
+update_retry_seconds() {
+    seconds="$MONITOR_UPDATE_RETRY"
+    case "$seconds" in
+        ''|*[!0-9]*) seconds="$UPDATE_RETRY_DEFAULT" ;;
+    esac
+    [ "$seconds" -lt "$UPDATE_RETRY_FLOOR" ] && seconds="$UPDATE_RETRY_FLOOR"
+    printf '%s' "$seconds"
+}
 
 # The version Monitor says this machine should be running, out of the answer it
 # just gave. Read from inside the "agent" object rather than by looking for
@@ -808,7 +824,7 @@ update_attempted_recently() {
     case "$last" in
         ''|*[!0-9]*) return 1 ;;
     esac
-    [ $(( $(date +%s) - last )) -lt "$UPDATE_RETRY_SECONDS" ]
+    [ $(( $(date +%s) - last )) -lt "$(update_retry_seconds)" ]
 }
 
 # self_update REASON [force]
@@ -1095,6 +1111,17 @@ handle_response() {
         [ -w "$CONF" ] && set_setting MONITOR_LEVEL "$MONITOR_LEVEL"
     fi
 
+    # How long to leave it between update attempts is Monitor's to decide, for
+    # the same reason the log level is: it changes when this machine tries, not
+    # what it is willing to do. Kept in the config so a fresh process has it
+    # before its first answer arrives.
+    retry="$(printf '%s' "$body" | sed -n 's/.*"update_retry"[[:space:]]*:[[:space:]]*\([0-9]\{1,\}\).*/\1/p' | first_line)"
+    if [ -n "$retry" ] && [ "$retry" != "$MONITOR_UPDATE_RETRY" ]; then
+        MONITOR_UPDATE_RETRY="$retry"
+        log info "Monitor set the update retry to $(update_retry_seconds)s."
+        [ -w "$CONF" ] && set_setting MONITOR_UPDATE_RETRY "$MONITOR_UPDATE_RETRY"
+    fi
+
     case "$body" in
         *'"status":"disabled"'*)
             echo "monitor-agent: this machine is switched off in Monitor. Nothing to do."
@@ -1288,6 +1315,11 @@ MONITOR_ALLOW="$MONITOR_ALLOW"
 # here and cannot be granted from there. Set it to 0 and updates arrive by
 # running the installer again, by hand.
 MONITOR_SELF_UPDATE="$MONITOR_SELF_UPDATE"
+
+# How long to leave it between attempts at replacing this agent. Monitor sets
+# this from Settings -> Agent and it arrives with every answer; what is here is
+# what the last answer said, so a fresh process starts with it.
+MONITOR_UPDATE_RETRY="$MONITOR_UPDATE_RETRY"
 
 # Skip TLS verification. Only for a Monitor install using a self-signed
 # certificate, and it does mean the token can be read by anything in the path.

@@ -31,6 +31,10 @@ final class AgentPolicy
     /** @var array<int,string> */
     public const LOG_LEVELS = ['error', 'warn', 'info', 'debug'];
 
+    /** A minute is the shortest retry that is still a throttle rather than a loop. */
+    public const MIN_UPDATE_RETRY = 60;
+    public const MAX_UPDATE_RETRY = 86400;
+
     public static function interval(): int
     {
         return max(
@@ -63,6 +67,29 @@ final class AgentPolicy
     public static function commands(): bool
     {
         return Settings::bool('agent_default_commands');
+    }
+
+    /**
+     * How long an agent leaves it before trying an update again.
+     *
+     * The throttle exists so that a server announcing a version that never
+     * arrives cannot have a whole fleet reinstalling every fifteen seconds. It
+     * is a floor on retries, not a schedule: an update that succeeds makes the
+     * versions agree, so nothing is retried and the value never comes up. It
+     * is felt in exactly one case -- two releases inside one window -- and
+     * that is why it is worth being able to shorten while a release is being
+     * worked on.
+     *
+     * Never zero. "Try again immediately, forever" is the failure this is
+     * here to prevent, and **Update the agent** already bypasses the throttle
+     * outright for the one machine somebody is looking at.
+     */
+    public static function updateRetry(): int
+    {
+        return max(
+            self::MIN_UPDATE_RETRY,
+            min(self::MAX_UPDATE_RETRY, Settings::int('agent_update_retry', 3600))
+        );
     }
 
     /**
