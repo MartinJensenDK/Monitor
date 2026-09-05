@@ -28,7 +28,11 @@ set -eu
 LC_ALL=C
 export LC_ALL
 
-AGENT_VERSION="1.1.4"
+# The two agents carry one version between them and move together, so that
+# "this machine is on 1.2.0" means the same thing whichever it is running. A
+# change to one is a release of both, even when the other needed nothing:
+# tools/check-agent.sh and check-agent.ps1 both refuse to pass if they differ.
+AGENT_VERSION="1.2.0"
 CONF="${MONITOR_CONF:-/etc/monitor-agent/agent.conf}"
 
 MONITOR_URL=""

@@ -37,7 +37,23 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$AgentVersion = '1.1.0'
+
+# The two agents carry one version between them and move together, so that
+# "this machine is on 1.2.0" means the same thing whichever it is running.
+# A change to one is a release of both, even when the other needed nothing:
+# tools/check-agent.sh and check-agent.ps1 both refuse to pass if they differ.
+$AgentVersion = '1.2.0'
+
+# What the last failure was. These are how the installer tells "this machine is
+# not who it says it is" from "that did not get through" -- they are not the
+# same thing, and acting on the second as though it were the first spends a use
+# of an enrolment key and leaves a second row in Monitor for the same computer.
+#
+#   0  fine
+#   2  the token was refused -- this machine has to enrol again
+#   3  the server could not read what was sent -- the token is fine
+#   1  anything else: unreachable, or an answer nobody expected
+$FailureCode = 0
 
 # Where the agent writes what it did, and where it keeps what it has not
 # managed to say yet. Overridable so the checks can run against a directory
@@ -76,6 +92,24 @@ function Invoke-Native {
     } finally {
         $ErrorActionPreference = $previous
     }
+}
+
+function Get-FailureCode {
+    param([int]$Code)
+
+    switch ($Code) {
+        200 { return 0 }
+        201 { return 0 }
+        400 { return 3 }
+        401 { return 2 }
+        default { return 1 }
+    }
+}
+
+function Set-Failure {
+    param([int]$Code)
+
+    $script:FailureCode = $Code
 }
 
 function ConvertTo-JsonString {
@@ -1076,15 +1110,23 @@ function Invoke-Poll {
             Update-Cadences -Body $answer.body
             return $answer.body
         }
+        400 {
+            Set-Failure 3
+            Write-AgentLog -Level 'error' -Message "The server could not read the live channel request: $($answer.body)"
+            throw 'The server could not read what this machine sent on the live channel.'
+        }
         401 {
+            Set-Failure 2
             Write-AgentLog -Level 'error' -Message "The live channel was refused: this machine's token is not accepted. Run the installer again."
             throw "This machine's token was refused. It may have been revoked; run the installer again to enrol."
         }
         0 {
+            Set-Failure 1
             Write-AgentLog -Level 'debug' -Message "Could not reach $($Config.MONITOR_URL) on the live channel."
             throw "Could not reach $($Config.MONITOR_URL). $($answer.message)"
         }
         default {
+            Set-Failure 1
             Write-AgentLog -Level 'debug' -Message "The live channel answered $($answer.code)."
             throw "Server answered $($answer.code)."
         }
@@ -1154,15 +1196,26 @@ function Invoke-Report {
             Update-Cadences -Body $answer.body
             return $answer.body
         }
+        400 {
+            # The server could not read what was sent. Almost always this
+            # agent's fault rather than the machine's, and worth saying so in
+            # the words that lead somewhere.
+            Set-Failure 3
+            Write-AgentLog -Level 'error' -Message "The server could not read this report: $($answer.body)"
+            throw "The server could not read this report. Run 'agent.ps1 -Dump' here and check it is whole."
+        }
         401 {
+            Set-Failure 2
             Write-AgentLog -Level 'error' -Message "Reporting was refused: this machine's token is not accepted. Run the installer again."
             throw "This machine's token was refused. It may have been revoked; run the installer again to enrol."
         }
         0 {
+            Set-Failure 1
             Write-AgentLog -Level 'warn' -Message "Could not reach $($Config.MONITOR_URL) to report."
             throw "Could not reach $($Config.MONITOR_URL). $($answer.message)"
         }
         default {
+            Set-Failure 1
             Write-AgentLog -Level 'warn' -Message "Reporting answered $($answer.code)."
             throw "Server answered $($answer.code)."
         }
@@ -1258,7 +1311,12 @@ if ($Loop) {
     if ($poll -le 0) {
         # Live channel off. There is nothing to keep alive, so behave the way
         # this agent always did: one report, then leave.
-        $body = Invoke-Report
+        try {
+            $body = Invoke-Report
+        } catch {
+            Write-Error -Message $_.Exception.Message -ErrorAction Continue
+            Complete-Run $(if ($script:FailureCode -eq 0) { 1 } else { $script:FailureCode })
+        }
         if ($null -ne $body) { Invoke-Answer -Body $body }
         Complete-Run 0 -Update
     }
@@ -1277,9 +1335,9 @@ if ($Loop) {
         } catch {
             # A refused token will not start working within the minute; say so
             # and stop. Anything else might, so keep knocking.
-            if ($_.Exception.Message -like '*token was refused*') {
-                Write-Error $_.Exception.Message
-                Complete-Run 1
+            if ($script:FailureCode -eq 2) {
+                Write-Error -Message $_.Exception.Message -ErrorAction Continue
+                Complete-Run 2
             }
             Write-Warning $_.Exception.Message
         }
@@ -1299,13 +1357,23 @@ if ($Loop) {
 }
 
 if ($Poll) {
-    $body = Invoke-Poll
+    try {
+        $body = Invoke-Poll
+    } catch {
+        Write-Error -Message $_.Exception.Message -ErrorAction Continue
+        Complete-Run $(if ($script:FailureCode -eq 0) { 1 } else { $script:FailureCode })
+    }
     if ($null -ne $body) { Write-Output $body }
     Complete-Run 0
 }
 
 # -Once, and the default: one full report, then whatever it came back with.
-$answerBody = Invoke-Report
+try {
+    $answerBody = Invoke-Report
+} catch {
+    Write-Error -Message $_.Exception.Message -ErrorAction Continue
+    Complete-Run $(if ($script:FailureCode -eq 0) { 1 } else { $script:FailureCode })
+}
 if ($null -eq $answerBody) { Complete-Run 0 }
 Invoke-Answer -Body $answerBody
 Complete-Run 0 -Update

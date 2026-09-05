@@ -364,6 +364,35 @@ token buys the ability to post nonsense about one machine, and nothing else.
 Which machines a person can see follows the same group rules as monitors —
 one idea of sharing, so a new page cannot invent a second one.
 
+## One version, two agents
+
+The Linux and Windows agents carry the same version number and are released
+together, so "this machine is on 1.2.0" means the same thing whichever one it
+is running. A fix to one is a release of both, even when the other needed
+nothing — otherwise the numbers drift and stop meaning anything, and this
+server ends up offering a version to a platform that never got it. Both check
+suites refuse to pass if the two disagree.
+
+Not every fix applies to both. Several of the faults found on Linux cannot
+occur on Windows: PowerShell strings cannot produce invalid UTF-8, a report
+built from a hashtable cannot stop half way, there is no `df` to misread, and
+the JSON encoder has forced `InvariantCulture` since it was written. Those
+releases still bump both — the Windows agent simply had nothing to change.
+
+What both do share is the exit code an agent answers with, because the
+installer acts on it:
+
+| | |
+|---|---|
+| `0` | Reported |
+| `2` | The token was refused — this machine has to enrol again |
+| `3` | The server could not read the report — the token is fine |
+| `1` | Anything else: unreachable, or an answer nobody expected |
+
+Only `2` makes the installer enrol again. Treating any non-zero exit as a dead
+token spends a use of an enrolment key and leaves a second row for the same
+computer, which is the one thing running the installer twice must never do.
+
 ## Testing the Windows agent
 
 The agent ships as PowerShell, and a self-hosted Monitor is unlikely to be

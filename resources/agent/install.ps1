@@ -362,12 +362,24 @@ $enrolled = $false
 if ($existingToken -and -not $Force) {
     Write-Output 'Found an existing token. Checking whether it still works...'
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Agent -Once -Conf $Conf
-    if ($LASTEXITCODE -eq 0) {
+    $check = $LASTEXITCODE
+
+    if ($check -eq 0) {
         $enrolled = $true
         $reported = $true
         Write-Output '  it does. Keeping this machine as it already is in Monitor.'
-    } else {
+    } elseif ($check -eq 2) {
         Write-Output '  it does not. Enrolling afresh.'
+    } else {
+        # The report did not get through, which is not the same as the token
+        # being refused: the machine may be off the network, or the server may
+        # not have been able to read what it sent. Enrolling on the strength of
+        # that would spend a use of the key and leave a second row in Monitor
+        # for this same computer.
+        $enrolled = $true
+        Write-Output '  it could not say -- the report did not get through.'
+        Write-Output '  Keeping the token this machine already has rather than enrolling it twice.'
+        Write-Output "  If it never reports, run:  powershell -File `"$Agent`" -Once"
     }
 }
 

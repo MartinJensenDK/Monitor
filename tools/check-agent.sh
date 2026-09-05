@@ -620,6 +620,23 @@ else
 fi
 
 echo
+echo 'The two agents move together'
+
+# One version between them, so "this machine is on 1.2.0" means the same thing
+# whichever agent it is running. A fix to one is a release of both, even when
+# the other needed nothing -- otherwise the numbers drift and stop meaning
+# anything, and Monitor offers a version to a platform that never got it.
+sh_version=$(grep -o '^AGENT_VERSION="[0-9][0-9.]*"' "$AGENT_DIR/agent.sh" | head -n 1 | tr -dc '0-9.')
+ps_version=$(grep -o "AgentVersion = '[0-9][0-9.]*'" "$AGENT_DIR/agent.ps1" | head -n 1 | tr -dc '0-9.')
+
+if [ -n "$sh_version" ] && [ "$sh_version" = "$ps_version" ]; then
+    ok "both agents say $sh_version"
+else
+    bad 'both agents carry the same version' "the same number in both" \
+        "agent.sh=${sh_version:-none} agent.ps1=${ps_version:-none}"
+fi
+
+echo
 echo 'The schedule it writes'
 
 # A systemd timer whose every anchor is in the past ends up "active (elapsed)"

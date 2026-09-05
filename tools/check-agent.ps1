@@ -513,6 +513,36 @@ $dropped = @($installerKeys | Where-Object { $agentKeys -notcontains $_ } | Sort
 Check 'every setting survives enrolment' ($dropped -join ',') ''
 
 ''
+'-- the two agents move together --'
+#
+# One version between them, so "this machine is on 1.2.0" means the same thing
+# whichever agent it is running. A fix to one is a release of both, even when
+# the other needed nothing -- otherwise the numbers drift and stop meaning
+# anything, and Monitor offers a version to a platform that never got it.
+$shellAgent = Get-Content -LiteralPath (Join-Path $root 'resources/agent/agent.sh') -Raw
+$shVersion = if ($shellAgent -match '(?m)^AGENT_VERSION="([0-9][0-9.]*)"') { $Matches[1] } else { '' }
+$psVersion = if ($agentText -match "AgentVersion = '([0-9][0-9.]*)'") { $Matches[1] } else { '' }
+Check 'both agents carry the same version' $psVersion $shVersion
+
+''
+'-- telling a dead token from a report that did not get through --'
+#
+# The installer acts on these. Reading "the server could not read that" as "you
+# are not who you say you are" spends a use of an enrolment key and leaves a
+# second row in Monitor for the same computer. The shell agent answers the same
+# way, and tools/check-agent.sh checks it against the same table.
+Check 'the server answering 200 is exit 0' (Get-FailureCode 200) 0
+Check 'the server answering 201 is exit 0' (Get-FailureCode 201) 0
+Check 'the server answering 400 is exit 3' (Get-FailureCode 400) 3
+Check 'the server answering 401 is exit 2' (Get-FailureCode 401) 2
+Check 'the server answering 503 is exit 1' (Get-FailureCode 503) 1
+Check 'unreachable is exit 1'              (Get-FailureCode 0)   1
+
+# And the installer has to act on 2 alone, not on "anything non-zero".
+Check 'the installer re-enrols only on a refused token' `
+    (($installerText -match '\$check -eq 2') -and ($installerText -notmatch 'if \(\$LASTEXITCODE -eq 0\) \{\s*\$enrolled')) $true
+
+''
 '-- each script recognises the other --'
 #
 # Both directions of a download are sanity-checked against a couple of strings
