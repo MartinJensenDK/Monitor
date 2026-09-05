@@ -15,7 +15,9 @@ use App\Core\HttpException;
 use App\Core\Lang;
 use App\Core\Request;
 use App\Core\Response;
+use App\Domain\AgentPolicy;
 use App\Domain\AuditLog;
+use App\Domain\Devices;
 use App\Domain\Settings;
 use App\Install\Installer;
 use App\Notifications\Channels;
@@ -27,7 +29,7 @@ final class SettingsController extends Controller
     public function index(Request $request): Response
     {
         $tab = (string) $request->query('tab', 'general');
-        if (!in_array($tab, ['general', 'notifications', 'entra'], true)) {
+        if (!in_array($tab, ['general', 'agent', 'notifications', 'entra'], true)) {
             $tab = 'general';
         }
 
@@ -46,6 +48,8 @@ final class SettingsController extends Controller
             'entraRedirectUri' => Entra::redirectUri(),
             'entraPermissions' => Entra::GRAPH_PERMISSIONS,
             'pingTransport' => PingTransport::detect(),
+            'agentFleet' => AgentPolicy::fleet(),
+            'logLevels' => AgentPolicy::LOG_LEVELS,
             'counts' => [
                 'checks' => (int) Db::value('SELECT COUNT(*) FROM {{checks}}'),
                 'minutes' => (int) Db::value('SELECT COUNT(*) FROM {{stats_minute}}'),
@@ -85,6 +89,70 @@ final class SettingsController extends Controller
         $this->success('Settings saved.');
 
         return $this->redirect('/settings');
+    }
+
+    /**
+     * The agent tab: what a machine is set up with when it enrols, and the two
+     * things this side can refuse the whole fleet.
+     */
+    public function updateAgent(Request $request): Response
+    {
+        // Zero is a real answer here -- it means a new machine is not on the
+        // live channel at all -- so the tick box decides, and the number is
+        // only read when it is on.
+        $poll = $request->boolean('agent_live')
+            ? (string) max(Devices::MIN_POLL, min(Devices::MAX_POLL, $request->int('agent_default_poll', Devices::DEFAULT_POLL)))
+            : '0';
+
+        Settings::setMany([
+            'agent_default_interval' => (string) max(
+                Devices::MIN_INTERVAL,
+                min(Devices::MAX_INTERVAL, $request->int('agent_default_interval', 300))
+            ),
+            'agent_default_poll' => $poll,
+            'agent_default_log_level' => in_array($request->input('agent_default_log_level'), AgentPolicy::LOG_LEVELS, true)
+                ? (string) $request->input('agent_default_log_level')
+                : 'info',
+            'agent_default_commands' => $request->boolean('agent_default_commands') ? '1' : '0',
+            'agent_updates_enabled' => $request->boolean('agent_updates_enabled') ? '1' : '0',
+            'agent_commands_enabled' => $request->boolean('agent_commands_enabled') ? '1' : '0',
+            'retention_device_metrics_days' => (string) max(1, min(730, $request->int('retention_device_metrics_days', 30))),
+            'retention_device_events_days' => (string) max(1, min(3650, $request->int('retention_device_events_days', 180))),
+            'retention_device_logs_days' => (string) max(1, min(365, $request->int('retention_device_logs_days', 14))),
+        ]);
+
+        AuditLog::record('settings.agent_updated', 'system', null, 'Updated the agent settings');
+        $this->success('Agent settings saved. Machines that are already enrolled keep their own settings.');
+
+        return $this->redirect('/settings?tab=agent');
+    }
+
+    /**
+     * Push the defaults onto machines that already exist.
+     *
+     * Separate from saving, and worded as what it is: saving a default changes
+     * what the next machine gets, and this changes what every machine has.
+     */
+    public function applyAgentDefaults(Request $request): Response
+    {
+        $changed = AgentPolicy::applyToAll();
+
+        AuditLog::record(
+            'settings.agent_applied',
+            'system',
+            null,
+            sprintf('Applied the agent defaults to %d machine(s)', $changed)
+        );
+
+        $this->success($changed === 0
+            ? 'Every machine already had these settings. Nothing changed.'
+            : sprintf(
+                '%d machine%s updated. The new cadence reaches each one on its next check-in.',
+                $changed,
+                $changed === 1 ? '' : 's'
+            ));
+
+        return $this->redirect('/settings?tab=agent');
     }
 
     /** Email delivery lives on its own tab, and saves on its own. */

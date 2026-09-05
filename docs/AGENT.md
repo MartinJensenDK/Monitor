@@ -152,6 +152,40 @@ which knocks once on the live channel and prints the answer. On Linux that is
 
 ---
 
+## Settings for the whole fleet
+
+**Settings → Agent** holds the two decisions that are not any one machine's:
+what a machine is set up with, and what this server is willing to offer it.
+
+The **defaults** — report interval, live channel and its cadence, log level,
+and whether commands are allowed — are applied once, at enrolment, and never
+consulted again. From that moment the machine's own row is the truth, which is
+what lets one machine be given a different cadence without disturbing the rest.
+An installer that was given `--interval` or `--poll` keeps its own answer:
+somebody typing a flag meant it. Log level and whether commands are allowed have
+no flags, so those are always the site's to decide.
+
+Because the defaults only ever seed, changing one does nothing to machines that
+already exist. **Apply to every machine** is the separate, deliberate act that
+writes them onto all of them at once, and it says how many it changed. The new
+cadence reaches each machine on its next check-in.
+
+The **switches** are the other kind of thing. They are read on every request an
+agent makes, so turning one off takes effect on the next knock, fleet-wide:
+
+- *Offer the agent this server holds* — off means the version is simply left out
+  of every answer, which every agent reads as "nothing on offer". Use it to hold
+  a fleet still while a new agent is tried on one machine. The machine's own
+  `--no-self-update` is unaffected and still wins where it is set.
+- *Hand out queued commands* — off means nothing is collected by anybody.
+  Queued commands wait where they are and expire on their own hour, so this is a
+  pause and not a cancellation.
+
+Neither switch can make a machine do anything. They only decide whether it is
+asked, which is this side of the two-lock arrangement described under Security.
+
+---
+
 ## Enrolment keys
 
 A key is a coupon, not an identity. A machine spends one, once, and is issued a
@@ -280,7 +314,9 @@ does the same thing on demand, and reinstalls even when the versions already
 agree, which is how a damaged agent gets repaired without going to it.
 
 A machine installed with `--no-self-update` does none of this and says so on its
-page. What protects a machine here is not a checksum — whoever controls this
+page, as does a site with *Offer the agent this server holds* switched off — in
+that case nobody is offered anything, and the machine's page says so rather than
+claiming an update is on its way. What protects a machine here is not a checksum — whoever controls this
 server controls the agent by design, and a hash served from the same place
 proves nothing against them. What protects it is the address pinned in its
 config, TLS on the way, and that veto, which is set on the machine and cannot be
@@ -437,5 +473,6 @@ updates writes a line per line of output and a fortnight-old progress message
 from apt is of no interest to anybody. What was *concluded* from it is a
 timeline entry, and those are kept far longer. The lists a report brings — disks, updates, packages, services, ports — are
 replaced wholesale each time, because a package that was uninstalled should
-disappear rather than linger. The first two are settings; all of it is pruned by
-the same scheduler run that prunes checks.
+disappear rather than linger. Readings, timeline entries and the agent log are
+all settings, on **Settings → Agent**; all of it is pruned by the same scheduler
+run that prunes checks.

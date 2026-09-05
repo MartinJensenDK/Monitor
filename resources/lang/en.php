@@ -258,6 +258,7 @@ return [
     'device.agent_updating' => 'This server holds :version, and offers it every time this machine checks in.',
     'device.agent_behind' => 'This server holds :version. The machine was installed with --no-self-update, so run the installer on it.',
     'device.agent_pinned' => 'Installed with --no-self-update: it will not replace itself.',
+    'device.agent_updates_off' => 'This server holds :version, but agent updates are switched off in Settings, so nothing is offered to anyone.',
     'device.agent_ahead' => 'Newer than the :version this server holds, so there is nothing to offer it.',
     'device.enrolled' => 'Enrolled',
     'device.token' => 'Token',

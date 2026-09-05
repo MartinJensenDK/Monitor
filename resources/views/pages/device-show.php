@@ -353,14 +353,25 @@ $facts = array_filter([
                         $compared = $running !== '' && $offered !== '0.0.0'
                             ? version_compare($running, $offered)
                             : 0;
+                        $offering = App\Domain\AgentPolicy::mayOfferUpdates();
                         ?>
                         <dd>
                             <?= e($running !== '' ? $running : '—') ?>
                             <?php if ($compared < 0): ?>
                                 <span class="pill pill--degraded"><?= e(t('device.agent_update_ready', ['version' => $offered])) ?></span>
-                                <span class="muted block"><?= e((int) $device['self_update'] === 1
-                                    ? t('device.agent_updating', ['version' => $offered])
-                                    : t('device.agent_behind', ['version' => $offered])) ?></span>
+                                <span class="muted block"><?php
+                                    // The pill says a newer one exists either
+                                    // way. This line says whether anything is
+                                    // going to come of that, and the site
+                                    // switch is the first thing in the way.
+                                    if (!$offering) {
+                                        echo e(t('device.agent_updates_off', ['version' => $offered]));
+                                    } elseif ((int) $device['self_update'] === 1) {
+                                        echo e(t('device.agent_updating', ['version' => $offered]));
+                                    } else {
+                                        echo e(t('device.agent_behind', ['version' => $offered]));
+                                    }
+                                ?></span>
                             <?php elseif ($compared > 0): ?>
                                 <span class="muted block"><?= e(t('device.agent_ahead', ['version' => $offered])) ?></span>
                             <?php elseif ((int) $device['self_update'] !== 1): ?>

@@ -34,6 +34,16 @@ final class Settings
         'retention_device_metrics_days' => '30',
         'retention_device_events_days' => '180',
         'retention_device_logs_days' => '14',
+
+        // The agent, fleet-wide. The four defaults seed a machine's own
+        // settings the moment it enrols; the two switches are refusals this
+        // side can make at any time, for every machine at once.
+        'agent_default_interval' => '300',
+        'agent_default_poll' => '15',
+        'agent_default_log_level' => 'info',
+        'agent_default_commands' => '1',
+        'agent_updates_enabled' => '1',
+        'agent_commands_enabled' => '1',
         'mail_driver' => 'smtp',
         'mail_from_address' => '',
         'mail_from_name' => 'Monitor',

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Agent;
 
 use App\Core\Db;
+use App\Domain\AgentPolicy;
 use App\Domain\DeviceCommands;
 use App\Domain\Devices;
 use App\Domain\EnrollmentKeys;
@@ -62,8 +63,15 @@ final class Enrolment
             'report_ip' => $ip,
             'status' => 'pending',
             'status_since' => $now,
-            'interval_seconds' => $payload['interval_seconds'] ?? 300,
-            'poll_seconds' => $payload['poll_seconds'] ?? Devices::DEFAULT_POLL,
+            // The installer's own flags win where the machine gave one, since
+            // somebody typing --interval meant it. Where it said nothing, the
+            // site's defaults fill in -- and for the log level and whether
+            // commands are allowed the machine never has anything to say, so
+            // those are the site's alone.
+            'interval_seconds' => $payload['interval_seconds'] ?? AgentPolicy::interval(),
+            'poll_seconds' => $payload['poll_seconds'] ?? AgentPolicy::poll(),
+            'log_level' => AgentPolicy::level(),
+            'commands_enabled' => AgentPolicy::commands() ? 1 : 0,
             'self_update' => ($payload['self_update'] ?? true) ? 1 : 0,
             'enrolled_at' => $now,
             'created_by' => $key['created_by'] === null ? null : (int) $key['created_by'],

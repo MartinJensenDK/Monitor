@@ -14,6 +14,7 @@ use App\Core\Config;
 use App\Core\Db;
 use App\Core\Request;
 use App\Core\Response;
+use App\Domain\AgentPolicy;
 use App\Domain\AuditLog;
 use App\Domain\DeviceCommands;
 use App\Domain\DeviceLogs;
@@ -143,22 +144,22 @@ final class AgentApiController extends Controller
 
         Ingest::report($device, $payload, $request->ip());
 
-        $commands = (int) $device['commands_enabled'] === 1
+        $commands = $this->mayCommand($device)
             ? DeviceCommands::claim((int) $device['id'])
             : [];
 
         $fresh = Devices::find((int) $device['id']);
 
-        return Response::json([
+        return Response::json(array_filter([
             'ok' => true,
             'status' => 'online',
             'interval' => (int) ($fresh['interval_seconds'] ?? $device['interval_seconds']),
             'poll' => (int) ($fresh['poll_seconds'] ?? $device['poll_seconds']),
             'level' => (string) ($fresh['log_level'] ?? $device['log_level']),
             'report' => false,
-            'agent' => Scripts::manifest((string) ($fresh['os_family'] ?? $device['os_family'])),
+            'agent' => $this->manifest((string) ($fresh['os_family'] ?? $device['os_family'])),
             'commands' => $commands,
-        ]);
+        ], static fn (mixed $value): bool => $value !== null));
     }
 
     /**
@@ -197,11 +198,11 @@ final class AgentApiController extends Controller
 
         Devices::touch($device);
 
-        $commands = (int) $device['commands_enabled'] === 1
+        $commands = $this->mayCommand($device)
             ? DeviceCommands::claim((int) $device['id'])
             : [];
 
-        return Response::json([
+        return Response::json(array_filter([
             'ok' => true,
             'status' => 'online',
             // Both cadences come back every time, so a change made in the
@@ -215,9 +216,9 @@ final class AgentApiController extends Controller
             // version and replaces itself if they differ -- which is why the
             // check costs nothing extra: it rides along with a request the
             // agent was making anyway.
-            'agent' => Scripts::manifest((string) $device['os_family']),
+            'agent' => $this->manifest((string) $device['os_family']),
             'commands' => $commands,
-        ]);
+        ], static fn (mixed $value): bool => $value !== null));
     }
 
     /**
@@ -253,6 +254,33 @@ final class AgentApiController extends Controller
         Devices::touch($device);
 
         return Response::json(['ok' => true, 'stored' => $stored]);
+    }
+
+    /**
+     * Both locks on running commands, in the order they were fitted: the site
+     * switch covers the whole fleet, the machine's own setting covers one.
+     * Either one being off is enough.
+     *
+     * @param array<string,mixed> $device
+     */
+    private function mayCommand(array $device): bool
+    {
+        return AgentPolicy::mayRunCommands() && (int) $device['commands_enabled'] === 1;
+    }
+
+    /**
+     * What the agent should be running, or nothing at all.
+     *
+     * Withholding the manifest is how updates are switched off site-wide. It
+     * is left out of the answer rather than emptied, because every agent
+     * already treats an absent offer as "nothing on offer" -- so an install
+     * that turns this off does not need its machines updated first.
+     *
+     * @return array<string,string>|null
+     */
+    private function manifest(string $osFamily): ?array
+    {
+        return AgentPolicy::mayOfferUpdates() ? Scripts::manifest($osFamily) : null;
     }
 
     /**

@@ -245,6 +245,7 @@ return [
     'device.agent_updating' => 'Denne server har :version og tilbyder den, hver gang maskinen melder sig.',
     'device.agent_behind' => 'Denne server har :version. Maskinen er installeret med --no-self-update, så kør installationsprogrammet på den.',
     'device.agent_pinned' => 'Installeret med --no-self-update: den udskifter ikke sig selv.',
+    'device.agent_updates_off' => 'Denne server har :version, men agentopdateringer er slået fra under Indstillinger, så der bliver ikke tilbudt noget til nogen.',
     'device.agent_ahead' => 'Nyere end den :version, denne server har, så der er ikke noget at tilbyde den.',
     'device.enrolled' => 'Tilmeldt',
     'device.token' => 'Token',

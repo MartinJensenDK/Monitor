@@ -13,6 +13,8 @@
  * @var array<int,array<string,mixed>> $entraGroups
  * @var string $entraRedirectUri
  * @var array<int,string> $entraPermissions
+ * @var array<string,mixed> $agentFleet
+ * @var array<int,string> $logLevels
  * @var string $tab
  */
 
@@ -25,6 +27,7 @@ $schedulerHealthy = $lastRunAge !== null && $lastRunAge < 300;
 // padlock that marks everything owned by Entra ID.
 $tabs = [
     'general' => ['label' => 'General', 'icon' => 'sliders'],
+    'agent' => ['label' => 'Agent', 'icon' => 'server'],
     'notifications' => ['label' => 'Notifications', 'icon' => 'mail'],
     'entra' => ['label' => 'Entra ID', 'icon' => 'lock'],
 ];
@@ -200,6 +203,205 @@ $tabs = [
                     <code class="code"><?= e(App\Checks\PingTransport::enableHint()) ?></code>
                     <p class="field__hint" style="margin-top:10px;">Monitor re-checks daily and switches over on its own.</p>
                 <?php endif; ?>
+            </div>
+        </section>
+    </div>
+
+    <div class="stack" data-tab-panel="agent" <?= $tab === 'agent' ? '' : 'hidden' ?>>
+        <?php
+        // Two different kinds of setting share this tab, and the panels are
+        // ordered so the difference is hard to miss: what a machine starts
+        // with, then what this side can refuse it, then how long what it sends
+        // is kept.
+        $agentLive = (int) $settings['agent_default_poll'] > 0;
+        $agentPoll = $agentLive ? (int) $settings['agent_default_poll'] : App\Domain\Devices::DEFAULT_POLL;
+        ?>
+
+        <section class="panel">
+            <div class="panel__head">
+                <h2>The agent</h2>
+                <span class="pill pill--<?= $agentFleet['behind'] > 0 ? 'degraded' : 'up' ?>" style="margin-left:auto;">
+                    <?= $agentFleet['behind'] > 0
+                        ? (int) $agentFleet['behind'] . ' behind'
+                        : 'fleet current' ?>
+                </span>
+            </div>
+            <div class="panel__body">
+                <p class="mt-0">
+                    This install holds
+                    <strong class="num"><?= e($agentFleet['versions']['linux']) ?></strong> for Linux and
+                    <strong class="num"><?= e($agentFleet['versions']['windows']) ?></strong> for Windows.
+                    <?= $settings['agent_updates_enabled'] === '1'
+                        ? 'Every machine that checks in is offered it.'
+                        : 'Nothing is offered to anyone: the switch below is off.' ?>
+                </p>
+                <p class="field__hint" style="margin-top:10px;">
+                    <span class="num"><?= (int) $agentFleet['total'] ?></span> machine<?= (int) $agentFleet['total'] === 1 ? '' : 's' ?> enrolled ·
+                    <span class="num"><?= (int) $agentFleet['behind'] ?></span> running an older agent ·
+                    <span class="num"><?= (int) $agentFleet['pinned'] ?></span> installed with <code>--no-self-update</code><?php if ((int) $agentFleet['unknown'] > 0): ?> ·
+                    <span class="num"><?= (int) $agentFleet['unknown'] ?></span> yet to say which version they run<?php endif; ?>
+                </p>
+            </div>
+        </section>
+
+        <form method="post" action="/settings/agent" class="stack">
+            <?= csrf_field() ?>
+
+            <section class="panel">
+                <div class="panel__head"><h2>What a machine starts with</h2></div>
+                <div class="panel__body">
+                    <p class="mt-0 muted">
+                        Applied once, when a machine enrols. Changing them here does not reach machines that
+                        already exist — each one is edited on its own page, or all of them at once further down.
+                    </p>
+
+                    <div class="form-grid" style="margin-top:14px;">
+                        <div class="field">
+                            <label class="field__label" for="agent_default_interval">Report every</label>
+                            <input class="input num" id="agent_default_interval" name="agent_default_interval" type="number"
+                                   min="<?= App\Domain\Devices::MIN_INTERVAL ?>" max="<?= App\Domain\Devices::MAX_INTERVAL ?>" step="10"
+                                   value="<?= e($settings['agent_default_interval']) ?>">
+                            <span class="field__hint">
+                                Seconds. A full report: what is installed, what is mounted, what is listening.
+                                An installer given <code>--interval</code> keeps its own answer.
+                            </span>
+                        </div>
+
+                        <div class="field">
+                            <label class="field__label" for="agent_default_poll">Check for orders every</label>
+                            <input class="input num" id="agent_default_poll" name="agent_default_poll" type="number"
+                                   min="<?= App\Domain\Devices::MIN_POLL ?>" max="<?= App\Domain\Devices::MAX_POLL ?>" step="5"
+                                   value="<?= e((string) $agentPoll) ?>">
+                            <span class="field__hint">Seconds. Only read when the live channel is on.</span>
+                        </div>
+
+                        <div class="field">
+                            <label class="field__label" for="agent_default_log_level">Log level</label>
+                            <select class="select" id="agent_default_log_level" name="agent_default_log_level">
+                                <?php foreach ($logLevels as $level): ?>
+                                    <option value="<?= e($level) ?>" <?= $settings['agent_default_log_level'] === $level ? 'selected' : '' ?>>
+                                        <?= e($level) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <span class="field__hint">How much the agent says about itself. <code>debug</code> is for working out why something is not happening.</span>
+                        </div>
+                    </div>
+
+                    <div class="stack stack--tight" style="margin-top:16px;">
+                        <label class="check">
+                            <input type="checkbox" name="agent_live" value="1" <?= $agentLive ? 'checked' : '' ?>>
+                            <span class="check__text">
+                                Put new machines on the live channel
+                                <small>
+                                    They knock every few seconds, so a command runs while somebody is watching and silence is
+                                    noticed in under a minute. Off means a machine is only ever heard from on its report.
+                                </small>
+                            </span>
+                        </label>
+
+                        <label class="check">
+                            <input type="checkbox" name="agent_default_commands" value="1" <?= $settings['agent_default_commands'] === '1' ? 'checked' : '' ?>>
+                            <span class="check__text">
+                                Let new machines be sent commands
+                                <small>
+                                    Reporting and checking for updates, and — where the machine was installed with
+                                    <code>--allow-updates</code> or <code>--allow-reboot</code> — those too.
+                                </small>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel__head"><h2>What this server offers the fleet</h2></div>
+                <div class="panel__body">
+                    <p class="mt-0 muted">
+                        Read on every request an agent makes, so switching one off reaches every machine on its next
+                        knock. Neither can make a machine do anything — they only decide whether it is asked.
+                    </p>
+
+                    <div class="stack stack--tight" style="margin-top:14px;">
+                        <label class="check">
+                            <input type="checkbox" name="agent_updates_enabled" value="1"
+                                   <?= $settings['agent_updates_enabled'] === '1' ? 'checked' : '' ?>>
+                            <span class="check__text">
+                                Offer the agent this server holds
+                                <small>
+                                    Off means no machine is told a newer agent exists, whatever its own setting says. Use it to
+                                    hold a fleet still while a new version is tried on one machine.
+                                </small>
+                            </span>
+                        </label>
+
+                        <label class="check">
+                            <input type="checkbox" name="agent_commands_enabled" value="1"
+                                   <?= $settings['agent_commands_enabled'] === '1' ? 'checked' : '' ?>>
+                            <span class="check__text">
+                                Hand out queued commands
+                                <small>
+                                    Off means nothing is collected by anyone. Queued commands wait where they are and expire on
+                                    their own hour, so this is a pause rather than a cancellation.
+                                </small>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel__head"><h2>How long to keep what machines send</h2></div>
+                <div class="panel__body">
+                    <div class="form-grid">
+                        <div class="field">
+                            <label class="field__label" for="retention_device_metrics_days">Measurements</label>
+                            <input class="input num" id="retention_device_metrics_days" name="retention_device_metrics_days"
+                                   type="number" min="1" max="730" value="<?= e($settings['retention_device_metrics_days']) ?>">
+                            <span class="field__hint">Days. CPU, memory and disk, one row per report — the charts on a machine's page.</span>
+                        </div>
+
+                        <div class="field">
+                            <label class="field__label" for="retention_device_events_days">Events</label>
+                            <input class="input num" id="retention_device_events_days" name="retention_device_events_days"
+                                   type="number" min="1" max="3650" value="<?= e($settings['retention_device_events_days']) ?>">
+                            <span class="field__hint">Days. What this server worked out: enrolled, went quiet, came back.</span>
+                        </div>
+
+                        <div class="field">
+                            <label class="field__label" for="retention_device_logs_days">Agent log</label>
+                            <input class="input num" id="retention_device_logs_days" name="retention_device_logs_days"
+                                   type="number" min="1" max="365" value="<?= e($settings['retention_device_logs_days']) ?>">
+                            <span class="field__hint">Days. What the machine said about itself, including the output of anything it was asked to run.</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <div class="form-actions">
+                <div class="btn-row" style="margin-left:auto;">
+                    <button class="btn btn--primary" type="submit"><?= icon('check') ?><?= e(t('action.save')) ?></button>
+                </div>
+            </div>
+        </form>
+
+        <section class="panel">
+            <div class="panel__head"><h2>Machines that already exist</h2></div>
+            <div class="panel__body">
+                <p class="mt-0">
+                    Every machine keeps its own copy of these settings, which is what lets one of them be given a
+                    different cadence without disturbing the rest. This writes the defaults above onto all
+                    <?= (int) $agentFleet['total'] ?> of them at once, undoing any of those differences.
+                </p>
+                <form method="post" action="/settings/agent/apply" style="margin-top:14px;"
+                      data-confirm="Apply the defaults to all <?= (int) $agentFleet['total'] ?> machines?"
+                      data-confirm-detail="Any machine set up differently on its own page goes back to these values. The new cadence reaches each one on its next check-in."
+                      data-confirm-label="Apply to all">
+                    <?= csrf_field() ?>
+                    <button class="btn" type="submit" <?= (int) $agentFleet['total'] === 0 ? 'disabled' : '' ?>>
+                        <?= icon('refresh') ?>Apply to every machine
+                    </button>
+                </form>
             </div>
         </section>
     </div>
