@@ -489,6 +489,30 @@ case "$got" in
 esac
 
 echo
+echo 'Telling a dead token from a report that did not get through'
+
+# The installer acts on these. Reading "the server could not read that" as "you
+# are not who you say you are" spends a use of an enrolment key and leaves a
+# second row in Monitor for the same computer -- which is exactly what happened
+# to the first machine that hit it.
+for pair in '200 0' '400 3' '401 2' '503 1' '000 1'; do
+    code=${pair% *}
+    want=${pair#* }
+    got=$(agent_case <<CASEEOF
+build_report() { printf '{}' > "\$WORK/report.json"; }
+post() { printf '{"ok":true}' > "\$WORK/response"; echo $code; }
+run_once "" >/dev/null 2>&1
+printf 'exit=%s\n' "\$?"
+CASEEOF
+)
+    if [ "$got" = "exit=$want" ]; then
+        ok "the server answering $code is exit $want"
+    else
+        bad "the server answering $code is exit $want" "exit=$want" "$got"
+    fi
+done
+
+echo
 echo 'What the server offers'
 
 got=$(agent_case <<'CASEEOF'

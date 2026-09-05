@@ -1225,6 +1225,15 @@ CONFEOF
 
 # ------------------------------------------------------------------- main ---
 
+# Exit codes are how the installer tells "this machine is not who it says it
+# is" from "this did not get through". They are not the same thing, and acting
+# on the second as though it were the first spends a use of an enrolment key
+# and leaves a second row in Monitor for the same computer.
+#
+#   0  reported
+#   2  the token was refused -- this machine has to enrol again
+#   3  the server could not read the report -- the token is fine
+#   1  anything else: unreachable, or an answer nobody expected
 run_once() {
     results="$1"
     build_report "$results" || return 1
@@ -1239,14 +1248,14 @@ run_once() {
             # The server could not read what was sent. Almost always this
             # agent's fault rather than the machine's, and worth saying so in
             # the words that lead somewhere.
-            echo "monitor-agent: the server could not read this report. Compare 'agent.sh --dump' against what it expects." >&2
-            log error "The server could not read this report: $(cat "$WORK/response" 2>/dev/null | cut -c 1-200)"
-            return 1
+            echo "monitor-agent: the server could not read this report. Run 'agent.sh --dump' here and check it is whole." >&2
+            log error "The server could not read this report: $(cut -c 1-200 < "$WORK/response" 2>/dev/null)"
+            return 3
             ;;
         401)
             echo "monitor-agent: this machine's token was refused. It may have been revoked; re-run the installer to enrol again." >&2
             log error "Reporting was refused: this machine's token is not accepted. Re-run the installer."
-            return 1
+            return 2
             ;;
         000)
             echo "monitor-agent: could not reach ${MONITOR_URL%/}. $(cat "$WORK/curl.err" 2>/dev/null)" >&2

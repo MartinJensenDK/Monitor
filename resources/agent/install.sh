@@ -333,13 +333,31 @@ chown root:root "$CONF" 2>/dev/null || true
 ENROLLED="0"
 if [ -n "$EXISTING_TOKEN" ]; then
     say "Found an existing token. Checking whether it still works..."
-    if MONITOR_CONF="$CONF" "$AGENT" --once >/dev/null 2>&1; then
-        ENROLLED="1"
-        REPORTED="1"
-        say "  it does. Keeping this machine as it already is in Monitor."
-    else
-        say "  it does not. Enrolling afresh."
-    fi
+
+    CHECK="0"
+    MONITOR_CONF="$CONF" "$AGENT" --once >/dev/null 2>&1 || CHECK=$?
+
+    case "$CHECK" in
+        0)
+            ENROLLED="1"
+            REPORTED="1"
+            say "  it does. Keeping this machine as it already is in Monitor."
+            ;;
+        2)
+            say "  it does not. Enrolling afresh."
+            ;;
+        *)
+            # The report did not get through, which is not the same as the
+            # token being refused: the machine may be off the network, or the
+            # server may not have been able to read what it sent. Enrolling on
+            # the strength of that would spend a use of the key and leave a
+            # second row in Monitor for this same computer.
+            ENROLLED="1"
+            say "  it could not say -- the report did not get through."
+            say "  Keeping the token this machine already has rather than enrolling it twice."
+            say "  If it never reports, run:  $AGENT --once"
+            ;;
+    esac
 fi
 
 if [ "$ENROLLED" = "0" ] && [ -z "$KEY" ]; then
