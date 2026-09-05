@@ -15,6 +15,8 @@
  * @var array<int,string> $entraPermissions
  * @var array<string,mixed> $agentFleet
  * @var array<int,string> $logLevels
+ * @var string $agentBaseUrl
+ * @var array<string,string> $agentChecksums
  * @var string $tab
  */
 
@@ -419,6 +421,89 @@ $tabs = [
                         <?= icon('refresh') ?>Apply to every machine
                     </button>
                 </form>
+            </div>
+        </section>
+
+        <?php
+        // The examples are deliberately about the three things this page
+        // cannot decide. Everything above -- cadence, log level, whether
+        // commands are allowed -- is applied from here when a machine enrols,
+        // so passing it on the command line only overrides what the site
+        // already says. What is left is the consent, which belongs to the
+        // machine and can only be given where the machine is.
+        $examples = [
+            'linux' => [
+                'label' => 'Linux',
+                'needs' => 'sh, curl, root',
+                'lines' => [
+                    'Report only, changing nothing' =>
+                        "curl -fsSLO {$agentBaseUrl}/agent/linux/install.sh\nsudo sh install.sh --key mek_xxxxxxxxxxxxxxxxxxxxxxxx",
+                    'Allowing updates and restarts from here' =>
+                        'sudo sh install.sh --key mek_xxxxxxxxxxxxxxxxxxxxxxxx --allow-updates --allow-reboot',
+                    'Granting a permission to a machine already enrolled' =>
+                        'sudo sh install.sh --allow-reboot',
+                    'Refusing to let the agent replace itself' =>
+                        'sudo sh install.sh --key mek_xxxxxxxxxxxxxxxxxxxxxxxx --no-self-update',
+                    'Removing it' =>
+                        'sudo sh install.sh --uninstall',
+                ],
+            ],
+            'windows' => [
+                'label' => 'Windows',
+                'needs' => 'PowerShell 5.1, as administrator',
+                'lines' => [
+                    'Report only, changing nothing' =>
+                        "irm {$agentBaseUrl}/agent/windows/install.ps1 -OutFile install.ps1\n.\\install.ps1 -Key mek_xxxxxxxxxxxxxxxxxxxxxxxx",
+                    'Allowing updates and restarts from here' =>
+                        '.\\install.ps1 -Key mek_xxxxxxxxxxxxxxxxxxxxxxxx -AllowUpdates -AllowReboot',
+                    'Granting a permission to a machine already enrolled' =>
+                        '.\\install.ps1 -AllowReboot',
+                    'Refusing to let the agent replace itself' =>
+                        '.\\install.ps1 -Key mek_xxxxxxxxxxxxxxxxxxxxxxxx -NoSelfUpdate',
+                    'Removing it' =>
+                        '.\\install.ps1 -Uninstall',
+                ],
+            ],
+        ];
+        ?>
+        <section class="panel">
+            <div class="panel__head"><h2>Installing an agent</h2></div>
+            <div class="panel__body">
+                <p class="mt-0 muted">
+                    A machine needs an enrolment key, which is made under
+                    <a href="/devices/enrollment">Servers &rarr; Enrolment</a> and is where the copyable command with a
+                    real key lives. These are the shapes of it. The cadences and the log level are not among them on
+                    purpose: this page decides those when a machine enrols, and passing them here would only override
+                    what it just said. What is left is what only the machine can give.
+                </p>
+
+                <div class="installs" style="margin-top:16px;">
+                    <?php foreach ($examples as $platform): ?>
+                        <div class="install">
+                            <div class="install__head">
+                                <h3><?= e($platform['label']) ?></h3>
+                                <span class="muted"><?= e($platform['needs']) ?></span>
+                            </div>
+
+                            <?php foreach ($platform['lines'] as $what => $line): ?>
+                                <p class="field__hint" style="margin:6px 0 0;"><?= e($what) ?></p>
+                                <div class="copyline copyline--block">
+                                    <pre class="copyline__text"><?= e($line) ?></pre>
+                                    <button class="btn btn--sm" type="button" data-copy="<?= e($line) ?>">
+                                        <?= icon('link') ?><?= e(t('action.copy')) ?>
+                                    </button>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+
+                <p class="field__hint" style="margin-top:14px;">
+                    The installer keeps every setting a machine already has, so a second run is a repair rather than a
+                    reset — a permission is only changed by naming it. Checksums for what this server is serving:
+                    <code class="num"><?= e(substr($agentChecksums['linux'], 0, 16)) ?>…</code> (Linux),
+                    <code class="num"><?= e(substr($agentChecksums['windows'], 0, 16)) ?>…</code> (Windows).
+                </p>
             </div>
         </section>
     </div>

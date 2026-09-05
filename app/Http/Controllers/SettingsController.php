@@ -15,6 +15,7 @@ use App\Core\HttpException;
 use App\Core\Lang;
 use App\Core\Request;
 use App\Core\Response;
+use App\Agent\Scripts;
 use App\Domain\AgentPolicy;
 use App\Domain\AuditLog;
 use App\Domain\Devices;
@@ -50,6 +51,11 @@ final class SettingsController extends Controller
             'pingTransport' => PingTransport::detect(),
             'agentFleet' => AgentPolicy::fleet(),
             'logLevels' => AgentPolicy::LOG_LEVELS,
+            'agentBaseUrl' => Scripts::baseUrl(),
+            'agentChecksums' => [
+                'linux' => Scripts::checksum('linux/install.sh'),
+                'windows' => Scripts::checksum('windows/install.ps1'),
+            ],
             'counts' => [
                 'checks' => (int) Db::value('SELECT COUNT(*) FROM {{checks}}'),
                 'minutes' => (int) Db::value('SELECT COUNT(*) FROM {{stats_minute}}'),
