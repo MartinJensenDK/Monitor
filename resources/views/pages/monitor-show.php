@@ -167,8 +167,8 @@ $circumference = 2 * M_PI * 34;
                 <p class="stat__value <?= $certDays < 7 ? 'stat__value--down' : ($certDays < 21 ? 'stat__value--warn' : '') ?>">
                     <?= (int) $certDays ?><span class="stat__unit">days</span>
                 </p>
-                <div class="meter" title="<?= e((string) $monitor['cert_expires_at']) ?> UTC">
-                    <div class="meter__fill <?= $certDays < 7 ? 'meter__fill--down' : ($certDays < 21 ? 'meter__fill--warn' : '') ?>"
+                <div class="certbar" title="<?= e((string) $monitor['cert_expires_at']) ?> UTC">
+                    <div class="certbar__fill <?= $certDays < 7 ? 'certbar__fill--down' : ($certDays < 21 ? 'certbar__fill--warn' : '') ?>"
                          style="width: <?= max(3, min(100, (int) round($certDays / $expiryHorizon * 100))) ?>%"></div>
                 </div>
                 <p class="stat__foot"><?= e((string) ($monitor['cert_issuer'] ?? '')) ?></p>

@@ -1270,22 +1270,26 @@ a:hover { text-decoration: underline; }
 .donut__value--down { stroke: var(--down); }
 .donut__label { font-family: var(--font-mono); font-size: 12px; fill: var(--ink); }
 
-/* Certificate meter */
-.meter {
+/* Certificate bar. Its own name, not .meter: the meter further down is a
+   column with a label above a track, and a bare 6px-tall box with the
+   overflow clipped is the opposite of that. Sharing the class meant
+   whichever rule came second won a property at a time, and the machines
+   pages lost. */
+.certbar {
     height: 6px;
     border-radius: 999px;
     background: var(--line);
     overflow: hidden;
 }
 
-.meter__fill {
+.certbar__fill {
     height: 100%;
     border-radius: 999px;
     background: var(--up);
 }
 
-.meter__fill--warn { background: var(--warn); }
-.meter__fill--down { background: var(--down); }
+.certbar__fill--warn { background: var(--warn); }
+.certbar__fill--down { background: var(--down); }
 
 /* ── Definition lists ───────────────────────────────────────────────── */
 
@@ -2164,12 +2168,25 @@ code {
     letter-spacing: 0;
     text-transform: none;
     color: var(--ink);
+    overflow: hidden;
+}
+
+/* The mount point is what identifies the row, so it keeps its width and
+   the device it came from gives way -- a long /dev/mapper name should not
+   be able to push the sizes off the panel. */
+.meter--wide .meter__label strong { flex: 0 0 auto; }
+
+.meter--wide .meter__label .muted {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .meter__value {
     font-size: 12px;
     color: var(--ink-2);
     white-space: nowrap;
+    flex: 0 0 auto;
 }
 
 .meter__track {

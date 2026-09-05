@@ -150,7 +150,7 @@ $facts = array_filter([
                 <section class="panel">
                     <div class="panel__head"><h2><?= icon('disk') ?><?= e(t('device.disks')) ?></h2></div>
                     <div class="panel__body">
-                        <div class="stack stack--tight">
+                        <div class="stack">
                             <?php foreach ($disks as $disk): ?>
                                 <?php $percent = percent_of((int) $disk['used_bytes'], (int) $disk['total_bytes']); ?>
                                 <div class="meter meter--wide">
