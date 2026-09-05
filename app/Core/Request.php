@@ -23,7 +23,8 @@ final class Request
         private array $server,
         private array $cookies,
         private string $body = '',
-        private bool $jsonUnreadable = false
+        private bool $jsonUnreadable = false,
+        private string $jsonError = ''
     ) {
     }
 
@@ -37,6 +38,7 @@ final class Request
         $post = $_POST;
         $body = '';
         $unreadable = false;
+        $jsonError = '';
         $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
         if (str_contains($contentType, 'application/json')) {
             $body = (string) file_get_contents('php://input');
@@ -48,7 +50,12 @@ final class Request
                 // rather than shrugged off: an endpoint that carries on with an
                 // empty payload here would take a machine's whole report,
                 // understand none of it, and store the nothing it understood.
+                //
+                // The reason is kept too. "Malformed UTF-8 characters" and
+                // "Syntax error" are different faults with different fixes, and
+                // the machine that has one of them is usually not to hand.
                 $unreadable = true;
+                $jsonError = json_last_error_msg();
             }
         }
 
@@ -60,7 +67,7 @@ final class Request
             }
         }
 
-        return new self($method, $path, $_GET, $post, $_SERVER, $_COOKIE, $body, $unreadable);
+        return new self($method, $path, $_GET, $post, $_SERVER, $_COOKIE, $body, $unreadable, $jsonError);
     }
 
     /** @param array<string,string> $params */
@@ -148,6 +155,12 @@ final class Request
     public function jsonUnreadable(): bool
     {
         return $this->jsonUnreadable;
+    }
+
+    /** Why it could not be decoded, in json_decode's own words. */
+    public function jsonError(): string
+    {
+        return $this->jsonError;
     }
 
     /**

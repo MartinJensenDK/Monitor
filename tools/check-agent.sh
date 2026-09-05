@@ -382,6 +382,62 @@ else
 fi
 
 echo
+echo 'Reading the disks'
+
+# df exits non-zero when a single mount cannot be stat'ed, which on a desktop
+# is always -- some gvfs or flatpak thing under /run/user. Its status therefore
+# says nothing about whether its output is usable, and treating it as "this df
+# has no -T" is how a machine came to report a disk called "Mounted".
+got=$(agent_case <<'CASEEOF'
+df() {
+    if [ "$2" = "-T" ]; then
+        printf 'Filesystem     Type 1024-blocks    Used Available Capacity Mounted on\n'
+        printf '/dev/sda2      ext4    50000000 2000000  45000000      5%% /\n'
+        printf 'tmpfs          tmpfs    1000000       0   1000000      0%% /run\n'
+        printf '/dev/sdb1      ext4   200000000 1000000 190000000      1%% /media/My Book\n'
+        return 1
+    fi
+    printf 'the fallback should not have been reached\n'
+}
+disks_json
+CASEEOF
+)
+expected='"disks":[{"mount":"/","source":"/dev/sda2","filesystem":"ext4","total_bytes":51200000000,"used_bytes":2048000000},{"mount":"/media/My Book","source":"/dev/sdb1","filesystem":"ext4","total_bytes":204800000000,"used_bytes":1024000000}]'
+if [ "$got" = "$expected" ]; then
+    ok 'a df that reports a mount it cannot read is still read'
+else
+    bad 'a df that reports a mount it cannot read is still read' "$expected" "$got"
+fi
+
+got=$(agent_case <<'CASEEOF'
+df() {
+    # An older or smaller df, with no -T at all.
+    if [ "$2" = "-T" ]; then return 1; fi
+    printf 'Filesystem     1024-blocks    Used Available Capacity Mounted on\n'
+    printf '/dev/sda2         50000000 2000000  45000000      5%% /\n'
+}
+disks_json
+CASEEOF
+)
+expected='"disks":[{"mount":"/","source":"/dev/sda2","filesystem":"","total_bytes":51200000000,"used_bytes":2048000000}]'
+if [ "$got" = "$expected" ]; then
+    ok 'and a df with no -T falls back to six columns'
+else
+    bad 'and a df with no -T falls back to six columns' "$expected" "$got"
+fi
+
+got=$(agent_case <<'CASEEOF'
+df() { return 1; }
+disks_json
+CASEEOF
+)
+if [ "$got" = '"disks":[]' ]; then
+    ok 'and one that says nothing at all is an empty list, not a broken one'
+else
+    bad 'and one that says nothing at all is an empty list, not a broken one' '"disks":[]' "$got"
+fi
+
+echo
 echo 'Running a command'
 
 # run_command is replaced with something that talks, slowly, and fails: what is

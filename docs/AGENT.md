@@ -326,10 +326,17 @@ browser to be tricked into sending. Both refuse a plain HTTP connection when
 `APP_URL` says the install uses HTTPS — a token crossing an unencrypted hop is a
 token somebody else now has.
 
-A report that cannot be decoded is refused with a 400 and said so, rather than
-accepted and stored as the nothing it amounted to — which is what used to
-happen, and it meant one bad byte in one package name could overwrite a
-machine's hostname, operating system and every list with null. The agent puts
+A report that cannot be decoded is refused with a 400 that names the reason —
+"Malformed UTF-8 characters" and "Syntax error" are different faults with
+different fixes — and the whole of the last such body is kept in
+`storage/logs/unreadable-body.json`, capped at a megabyte and overwritten each
+time. The ends of a 300 KB document are exactly where this kind of fault is
+not, and the machine that sent it is usually not one anybody is sitting at.
+
+It is refused rather than accepted and stored as the nothing it amounted to,
+which is what used to happen — and it meant one bad byte in one package name
+could overwrite a machine's hostname, operating system and every list with
+null. The agent puts
 what it collects through `iconv` before sending, because a package description
 or a service unit is somebody else's text and a machine is under no obligation
 to keep it in UTF-8; a stray byte is dropped rather than the report.

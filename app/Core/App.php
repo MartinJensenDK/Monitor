@@ -234,6 +234,15 @@ final class App
         return $default === 'dark' ? 'dark' : 'light';
     }
 
+    /**
+     * One line in the same log the exceptions go to, for something that is not
+     * an exception but is still worth being able to read afterwards.
+     */
+    public static function logNote(string $message): void
+    {
+        self::appendLog(sprintf("[%s] %s\n", gmdate('Y-m-d H:i:s'), $message));
+    }
+
     public static function logError(Throwable $e): void
     {
         $line = sprintf(
@@ -246,6 +255,11 @@ final class App
             $e->getTraceAsString()
         );
 
+        self::appendLog($line);
+    }
+
+    private static function appendLog(string $line): void
+    {
         $file = self::$basePath . '/storage/logs/app.log';
         if (!is_dir(dirname($file))) {
             @mkdir(dirname($file), 0750, true);

@@ -15,7 +15,7 @@
 
 set -eu
 
-AGENT_VERSION="1.1.1"
+AGENT_VERSION="1.1.2"
 CONF="${MONITOR_CONF:-/etc/monitor-agent/agent.conf}"
 
 MONITOR_URL=""
@@ -415,24 +415,45 @@ metrics_json() {
 
 # ------------------------------------------------------------------- disks ---
 
+# df is run once, and its own header says what its columns are.
+#
+# Both halves of that matter. df exits non-zero when a single mount cannot be
+# stat'ed, and a desktop always has one -- some gvfs or flatpak thing under
+# /run/user -- so its exit status says nothing about whether the output is
+# usable. Reading that status as "this df has no -T" and running a second one
+# put two tables in the stream and read the header of the second as though it
+# were a filesystem, which is how a machine came to report a disk called
+# "Mounted" while its real ones went missing.
 disks_json() {
     printf '"disks":['
-    { df -P -T -k 2>/dev/null || df -P -k 2>/dev/null; } \
-    | awk -v esc_fields="$(df -P -T -k >/dev/null 2>&1 && echo 7 || echo 6)" "
-        $AWK_ESC
-        NR == 1 { next }
-        {
-            if (esc_fields == 7) { src = \$1; fs = \$2; total = \$3; used = \$4; mount = \$7 }
-            else                 { src = \$1; fs = \"\";  total = \$2; used = \$3; mount = \$6 }
-            if (mount == \"\" || total + 0 <= 0) next
-            if (fs ~ /^(tmpfs|devtmpfs|squashfs|overlay|proc|sysfs|cgroup|cgroup2|ramfs|efivarfs|autofs|fuse.gvfsd-fuse|fuse.portal|nsfs|tracefs|debugfs)\$/) next
-            if (mount ~ /^\/(proc|sys|dev|run)(\/|\$)/) next
-            if (seen[mount]++) next
-            if (n++) printf \",\"
-            printf \"{\\\"mount\\\":\\\"%s\\\",\\\"source\\\":\\\"%s\\\",\\\"filesystem\\\":\\\"%s\\\",\\\"total_bytes\\\":%d,\\\"used_bytes\\\":%d}\",
-                esc(mount), esc(src), esc(fs), total * 1024, used * 1024
-        }
-    "
+
+    df -P -T -k > "$WORK/df" 2>/dev/null || true
+    [ -s "$WORK/df" ] || df -P -k > "$WORK/df" 2>/dev/null || true
+
+    if [ -s "$WORK/df" ]; then
+        awk "
+            $AWK_ESC
+            NR == 1 { typed = (\$2 == \"Type\"); first = typed ? 7 : 6; next }
+            {
+                if (typed) { src = \$1; fs = \$2; total = \$3; used = \$4 }
+                else       { src = \$1; fs = \"\";  total = \$2; used = \$3 }
+
+                # A mount point may contain spaces, and df -P does not quote
+                # them, so it is everything from the last column onwards.
+                mount = \$first
+                for (i = first + 1; i <= NF; i++) mount = mount \" \" \$i
+
+                if (mount == \"\" || total + 0 <= 0) next
+                if (fs ~ /^(tmpfs|devtmpfs|squashfs|overlay|proc|sysfs|cgroup|cgroup2|ramfs|efivarfs|autofs|fuse.gvfsd-fuse|fuse.portal|nsfs|tracefs|debugfs)\$/) next
+                if (mount ~ /^\/(proc|sys|dev|run)(\/|\$)/) next
+                if (seen[mount]++) next
+                if (n++) printf \",\"
+                printf \"{\\\"mount\\\":\\\"%s\\\",\\\"source\\\":\\\"%s\\\",\\\"filesystem\\\":\\\"%s\\\",\\\"total_bytes\\\":%d,\\\"used_bytes\\\":%d}\",
+                    esc(mount), esc(src), esc(fs), total * 1024, used * 1024
+            }
+        " "$WORK/df"
+    fi
+
     printf ']'
 }
 

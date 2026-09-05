@@ -9,6 +9,7 @@ use App\Agent\Enrolment;
 use App\Agent\Ingest;
 use App\Agent\Payload;
 use App\Agent\Scripts;
+use App\Core\App;
 use App\Core\Config;
 use App\Core\Db;
 use App\Core\Request;
@@ -39,6 +40,9 @@ final class AgentApiController extends Controller
      */
     private const ENROL_ATTEMPTS = 30;
     private const ENROL_WINDOW_MINUTES = 15;
+
+    /** How much of a body that could not be read is kept, so one machine cannot fill a disk. */
+    private const KEEP_UNREADABLE = 1048576;
 
     /**
      * POST /api/agent/enroll
@@ -316,7 +320,17 @@ final class AgentApiController extends Controller
         // itself -- so a single bad byte in one package name would overwrite a
         // machine's hostname, operating system and every list with null.
         if ($request->jsonUnreadable()) {
-            return $this->fail(400, 'unreadable_body');
+            $this->recordUnreadable($request);
+
+            return Response::json([
+                'ok' => false,
+                'error' => 'unreadable_body',
+                // Handed back rather than kept here. The machine that sent it
+                // is the one that can be fixed, and it is usually not one
+                // anybody is sitting at -- so the agent puts this in its own
+                // log, where it can be read from the interface.
+                'reason' => $request->jsonError(),
+            ], 400);
         }
 
         if (!$request->isSecure() && str_starts_with(Config::string('app.url'), 'https://')) {
@@ -324,6 +338,45 @@ final class AgentApiController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * A note in the log, bounded, about a body that could not be read.
+     *
+     * The machine sending it cannot be asked what it sent -- that is rather the
+     * problem -- so enough of it is written down here to tell a truncated
+     * document from a mis-encoded one without keeping the whole thing.
+     */
+    private function recordUnreadable(Request $request): void
+    {
+        $body = $request->body();
+
+        // The last one is kept whole, overwritten each time and capped, because
+        // the ends of a document are exactly where this kind of fault is not.
+        // A machine sending 300 KB of inventory that breaks somewhere in the
+        // middle cannot be debugged from an excerpt, and it is usually not a
+        // machine anybody is sitting at.
+        $kept = App::basePath('storage/logs/unreadable-body.json');
+        @file_put_contents($kept, substr($body, 0, self::KEEP_UNREADABLE));
+
+        App::logNote(sprintf(
+            'agent: unreadable body from %s (%s, %d bytes), kept in storage/logs/unreadable-body.json. Head: %s ... tail: %s',
+            $request->ip(),
+            $request->jsonError(),
+            strlen($body),
+            self::readable(substr($body, 0, 200)),
+            self::readable(substr($body, -200))
+        ));
+    }
+
+    /** Printable ASCII kept, everything else shown as the byte it is. */
+    private static function readable(string $text): string
+    {
+        return (string) preg_replace_callback(
+            '/[^\x20-\x7e]/',
+            static fn (array $m): string => sprintf('\x%02x', ord($m[0])),
+            $text
+        );
     }
 
     private function fail(int $status, string $reason): Response
