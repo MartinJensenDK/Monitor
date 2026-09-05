@@ -416,6 +416,18 @@ UNITEOF
 Description=Report to Monitor every $INTERVAL seconds
 
 [Timer]
+# Three anchors, and the first one is the one that matters.
+#
+# OnActiveSec is relative to the timer itself starting, so it is never in the
+# past. Without it a timer has only OnBootSec -- long gone on a machine that
+# has been up a week -- and OnUnitActiveSec, which is also in the past when the
+# last run was longer ago than the interval. A timer whose every anchor is
+# behind it can end up "active (elapsed)" with no next run at all: enabled,
+# looking healthy, and never firing again. That is silent in exactly the way a
+# monitoring agent must not be, and it is a state this installer can walk a
+# machine into, because it registers the timer and then the agent restarts it
+# when Monitor changes the cadence.
+OnActiveSec=10s
 OnBootSec=30
 OnUnitActiveSec=${CADENCE}s
 # Spread the fleet out, so a hundred machines do not all arrive at once. Kept
@@ -424,7 +436,6 @@ OnUnitActiveSec=${CADENCE}s
 # measured by.
 RandomizedDelaySec=${JITTER}
 AccuracySec=1s
-Persistent=true
 
 [Install]
 WantedBy=timers.target
@@ -433,7 +444,28 @@ TIMEREOF
     chmod 644 "$UNIT" "$TIMER"
     systemctl daemon-reload
     systemctl enable --now monitor-agent.timer >/dev/null
-    say "Scheduled with systemd. Check it with: systemctl list-timers monitor-agent.timer"
+
+    # "Enabled" is not "will fire". Read the state back out of systemd, the way
+    # the Windows installer reads its task back.
+    #
+    # SubState is the thing to ask. A healthy timer is "waiting"; one that has
+    # run out of anchors is "elapsed", which systemctl prints as "active
+    # (elapsed)" and which looks perfectly well from every other angle -- it is
+    # loaded, enabled and active, and it is never going to run again. The
+    # elapse time is no good for this: a monotonic timer reports it as
+    # "infinity" even while it is armed and counting down.
+    TIMER_STATE="$(systemctl show -p SubState --value monitor-agent.timer 2>/dev/null || true)"
+    case "$TIMER_STATE" in
+        waiting|running)
+            say "Scheduled with systemd. Check it with: systemctl list-timers monitor-agent.timer"
+            ;;
+        *)
+            say "warning: the timer is enabled but is $TIMER_STATE rather than waiting, so it has no next run."
+            say "         Reporting once now. If this machine goes quiet, run:"
+            say "           systemctl restart monitor-agent.timer"
+            systemctl start monitor-agent.service >/dev/null 2>&1 || true
+            ;;
+    esac
 else
     # Cron has a one-minute floor, so a shorter interval is rounded up to it.
     minutes=$(( CADENCE / 60 ))

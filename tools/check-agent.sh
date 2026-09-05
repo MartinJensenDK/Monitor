@@ -620,6 +620,42 @@ else
 fi
 
 echo
+echo 'The schedule it writes'
+
+# A systemd timer whose every anchor is in the past ends up "active (elapsed)"
+# -- loaded, enabled, active, and never going to run again. OnActiveSec is
+# relative to the timer itself starting, so it cannot be in the past, and it is
+# the only thing standing between a fleet and that state. Do not remove it.
+timer_block=$(sed -n '/^\[Timer\]$/,/^TIMEREOF$/p' "$AGENT_DIR/install.sh")
+
+for anchor in OnActiveSec OnBootSec OnUnitActiveSec; do
+    if printf '%s\n' "$timer_block" | grep -q "^$anchor="; then
+        ok "the timer is anchored on $anchor"
+    else
+        bad "the timer is anchored on $anchor" "an $anchor= line" 'it is not there'
+    fi
+done
+
+# Persistent= only does anything for OnCalendar= timers. On a monotonic one it
+# is noise that reads like a guarantee.
+if printf '%s\n' "$timer_block" | grep -q '^Persistent='; then
+    bad 'no Persistent= on a monotonic timer' 'no Persistent= line' 'it is back'
+else
+    ok 'and carries no Persistent=, which would do nothing here'
+fi
+
+# Registering a timer is not the same as having one that will fire, and the
+# elapse time cannot tell the difference -- a monotonic timer reports it as
+# "infinity" while armed and counting down. SubState can.
+if grep -q 'systemctl show -p SubState --value monitor-agent.timer' "$AGENT_DIR/install.sh" \
+   && grep -q '^        waiting|running)' "$AGENT_DIR/install.sh"; then
+    ok 'and the installer reads its state back before calling it scheduled'
+else
+    bad 'and the installer reads its state back before calling it scheduled' \
+        'a SubState check accepting waiting|running' 'it is not there'
+fi
+
+echo
 echo 'Each script recognises the other'
 
 # Both directions of a download are sanity-checked against a couple of strings

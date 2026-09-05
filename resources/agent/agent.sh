@@ -28,7 +28,7 @@ set -eu
 LC_ALL=C
 export LC_ALL
 
-AGENT_VERSION="1.1.3"
+AGENT_VERSION="1.1.4"
 CONF="${MONITOR_CONF:-/etc/monitor-agent/agent.conf}"
 
 MONITOR_URL=""
@@ -977,6 +977,10 @@ apply_schedule() {
     seconds="$1"
 
     if [ -f /etc/systemd/system/monitor-agent.timer ] && have systemctl; then
+        # Restarting a timer is only safe because the unit carries an
+        # OnActiveSec anchor: a restart re-arms from now. Without it, a timer
+        # whose other anchors are both in the past comes back elapsed and never
+        # fires again -- which is a machine that has quietly stopped reporting.
         tmp="$WORK/timer"
         sed "s/^OnUnitActiveSec=.*/OnUnitActiveSec=${seconds}s/" /etc/systemd/system/monitor-agent.timer > "$tmp" || return 0
         cat "$tmp" > /etc/systemd/system/monitor-agent.timer 2>/dev/null || return 0

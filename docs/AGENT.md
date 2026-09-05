@@ -137,7 +137,13 @@ updated, and `--no-allow-updates` is how a permission is actually taken away.
 
 If the schedule cannot be created at all, the installer says so plainly rather
 than reporting success — the machine is enrolled, its token is saved, and
-running the installer again will finish the job.
+running the installer again will finish the job. It also reads the schedule
+back before calling it done, because "enabled" and "will fire" are not the same
+thing: a systemd timer whose every anchor is in the past sits there `active
+(elapsed)` — loaded, enabled, active, and never going to run again. The timer
+carries an `OnActiveSec=` anchor, which is relative to the timer itself
+starting and so cannot be in the past, precisely so it cannot get into that
+state.
 
 Three commands are useful when something is not working: `--version`; `--dump`,
 which prints the report the agent would send without sending it; and `--poll`,
