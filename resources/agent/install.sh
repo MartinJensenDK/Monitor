@@ -81,6 +81,29 @@ CRON="/etc/cron.d/monitor-agent"
 say() { printf '%s\n' "$*"; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
+# The two installers spell their options differently -- -AllowReboot there,
+# --allow-reboot here -- and the documentation shows both, so carrying one
+# across is an easy mistake and a silent one to make twice. Refusing an option
+# it does not know is deliberate: a misspelt permission that was quietly
+# skipped would leave somebody believing they had granted it. Saying which one
+# it thinks was meant costs nothing and ends the guessing.
+windows_spelling() {
+    printf '%s' "$1" | sed -e 's/^-*//' -e 's/\([A-Z]\)/-\1/g' | tr 'A-Z' 'a-z' | sed -e 's/^-*//' -e 's/^/--/'
+}
+
+did_you_mean() {
+    suggestion="$(windows_spelling "$1")"
+    [ "$suggestion" != "$1" ] || return 1
+
+    case "$suggestion" in
+        --key|--url|--interval|--poll|--no-live|--collect|--level|\
+        --allow-updates|--allow-reboot|--no-allow-updates|--no-allow-reboot|\
+        --self-update|--no-self-update|--insecure|--no-insecure|--force|--uninstall)
+            printf '%s' "$suggestion" ;;
+        *) return 1 ;;
+    esac
+}
+
 while [ $# -gt 0 ]; do
     case "$1" in
         --key) KEY="${2:-}"; shift 2 ;;
@@ -109,7 +132,11 @@ while [ $# -gt 0 ]; do
         # Printed from the comment block at the top, so there is one copy of it
         # rather than a duplicate here that drifts out of date.
         -h|--help) awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; exit 0 ;;
-        *) die "unknown option: $1" ;;
+        *)
+            meant="$(did_you_mean "$1" || true)"
+            [ -n "$meant" ] && die "unknown option: $1
+       did you mean $meant? that is how this installer spells it; $1 is the Windows one."
+            die "unknown option: $1" ;;
     esac
 done
 
