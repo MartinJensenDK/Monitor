@@ -27,6 +27,7 @@ final class Rbac
             'dashboard.view',
             'monitors.view',
             'incidents.view',
+            'devices.view',
             'profile.edit',
         ];
 
@@ -38,10 +39,18 @@ final class Rbac
             'locations.manage',
             'incidents.resolve',
             'notifications.edit',
+            'devices.manage',
+            'devices.command',
         ]);
 
         $admin = array_merge($editor, [
             'monitors.delete',
+            'devices.delete',
+            'devices.enroll',
+            // Asking a machine to change itself -- install updates, restart --
+            // is held here rather than with editors. The machine still has to
+            // have consented at install time; this is the second lock.
+            'devices.command_changes',
             'users.view',
             'users.manage',
             'groups.view',

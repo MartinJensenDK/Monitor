@@ -26,6 +26,8 @@ require __DIR__ . '/../app/Support/helpers.php';
 use App\Core\App;
 use App\Core\Db;
 use App\Entra\Sync;
+use App\Domain\DeviceCommands;
+use App\Domain\Devices;
 use App\Notifications\CertificateWatcher;
 use App\Scheduler\Retention;
 use App\Scheduler\Rollup;
@@ -75,6 +77,16 @@ try {
             $sync = Sync::run();
             if ($verbose) {
                 echo '  entra: ' . $sync['message'] . "\n";
+            }
+        }
+
+        // Machines report to us rather than the other way round, so silence is
+        // the only signal there is. Nobody would notice it without this.
+        $moved = Devices::refreshStatuses();
+        DeviceCommands::expireStale();
+        if ($verbose && $moved !== []) {
+            foreach ($moved as $status => $count) {
+                echo sprintf("  devices: %d moved to %s\n", $count, $status);
             }
         }
 

@@ -57,8 +57,11 @@ final class Monitors
             $params['location_filter'] = (int) $filters['location'];
         }
         if (($filters['q'] ?? '') !== '') {
-            $where[] = '(m.`name` LIKE :q OR m.`target` LIKE :q)';
-            $params['q'] = '%' . $filters['q'] . '%';
+            // Two placeholders rather than :q twice -- see the note in
+            // App\Domain\Devices::visible(); PDO cannot bind one name to two
+            // positions while prepares are native.
+            $where[] = '(m.`name` LIKE :q_name OR m.`target` LIKE :q_target)';
+            $params['q_name'] = $params['q_target'] = '%' . $filters['q'] . '%';
         }
 
         return Db::select(

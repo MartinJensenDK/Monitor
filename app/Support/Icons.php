@@ -52,6 +52,14 @@ final class Icons
         'pin' => '<path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/>',
         'map' => '<path d="M9 4 3 6.5v13L9 17l6 2.5 6-2.5v-13L15 6.5 9 4Z"/><path d="M9 4v13"/><path d="M15 6.5v13"/>',
         'signpost' => '<path d="M12 3v18"/><path d="M12 6h6l2.5 2.5L18 11h-6"/><path d="M12 13H6l-2.5 2.5L6 18h6"/>',
+        'server' => '<rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><path d="M7 7h.01"/><path d="M7 17h.01"/><path d="M11 7h6"/><path d="M11 17h6"/>',
+        'laptop' => '<rect x="4" y="5" width="16" height="10" rx="1.5"/><path d="M2 19h20"/><path d="M10 19h4"/>',
+        'chip' => '<rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4"/>',
+        'disk' => '<ellipse cx="12" cy="6.5" rx="7.5" ry="3"/><path d="M4.5 6.5v11c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-11"/><path d="M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3"/>',
+        'package' => '<path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5"/><path d="M12 12v9"/>',
+        'download' => '<path d="M12 4v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4 20h16"/>',
+        'terminal' => '<rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="m7 9 3 3-3 3"/><path d="M12.5 15H17"/>',
+        'key' => '<circle cx="8" cy="12" r="4"/><path d="M12 12h9"/><path d="M17 12v3.5"/><path d="M20 12v2.5"/>',
     ];
 
     public static function svg(string $name, string $class = 'icon'): string

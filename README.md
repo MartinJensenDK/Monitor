@@ -35,6 +35,26 @@ while there is still time to renew. See
 [docs/MONITOR-TYPES.md](docs/MONITOR-TYPES.md) for what each type asks for and
 what it reports back.
 
+**Machines that report about themselves**
+
+The nine checks above watch from the outside. A small agent turns that round for
+the machines you own: it runs on the server or the laptop, posts in over HTTPS
+every few minutes, and fills the **Servers** and **Clients** pages with what only
+the inside knows — hardware, operating system, disk pressure, pending updates and
+which of them are security fixes, whether a restart is outstanding, installed
+software, running services, listening ports.
+
+One command installs it, on Linux or Windows. It listens on nothing, so there is
+no port to open and nothing to reach on the machine. Between reports it knocks
+on a small endpoint every few seconds to ask whether anything is waiting, which
+makes a queued command land in seconds and a machine going quiet noticeable in
+under a minute — without a daemon, a service or an open port anywhere.
+
+By default it only reports; an administrator can additionally ask it to refresh
+its update list, install updates or restart, and each of those last two only
+works if whoever installed the agent allowed it on the machine itself. See
+[docs/AGENT.md](docs/AGENT.md).
+
 **Everything around them**
 
 - **Email notifications** — SMTP or local sendmail, configured in the interface
@@ -124,10 +144,13 @@ MySQL advisory lock keeps two runs from overlapping.
 
 ```
 app/Core/        router, PDO wrapper, views, sessions, auth, roles
-app/Domain/      monitors, incidents, groups, stats, settings — and MonitorScope,
-                 the single place that decides which monitors a user may see
+app/Domain/      monitors, incidents, groups, stats, settings — and MonitorScope
+                 and DeviceScope, the two places that decide what a user may see
 app/Checks/      one class per monitor type, plus the protocol clients they
                  use — a DNS resolver, a TLS inspector, an RDAP/WHOIS reader
+app/Agent/       the machine side: enrolment, token checks, and Payload, which
+                 is where everything a machine posts is made safe to store
+resources/agent/ the agent and its installer, for Linux and Windows
 app/Scheduler/   the runner, the rollups, retention
 app/Install/     shared by the browser wizard and bin/install.php
 public/          the only folder the web server needs
@@ -166,6 +189,14 @@ Entra client secret later — are encrypted with the key in `.env`.
 Monitors fetch addresses that people type in, so private and loopback targets are
 refused unless an administrator turns them on in Settings. The check verifies the
 address it actually reached, which also covers redirects.
+
+Agents authenticate with a token unique to the machine, kept here only as a hash
+and never recoverable from this side. Enrolment keys are separate from tokens, so
+a leaked key is revoked without touching machines that already enrolled with it.
+Everything a machine posts is clamped and cut to size before it is stored, and
+the only thing this site can ask a machine to do is one of five named actions
+that the machine itself has to have agreed to. See
+[docs/AGENT.md](docs/AGENT.md#security).
 
 ## Licence
 

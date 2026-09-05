@@ -23,12 +23,24 @@ $readoutText = $counts['down'] > 0
 $nav = [
     ['path' => '/', 'label' => t('nav.dashboard'), 'icon' => 'gauge', 'match' => '/'],
     ['path' => '/monitors', 'label' => t('nav.monitors'), 'icon' => 'pulse', 'match' => '/monitors'],
-    ['path' => '/incidents', 'label' => t('nav.incidents'), 'icon' => 'alert', 'match' => '/incidents', 'count' => $openIncidents],
 ];
+
+// Machines sit under Monitors because they are the same question asked the
+// other way round: what the network can see, and what the machine can see of
+// itself. They disappear entirely on an install that has not migrated yet.
+if (App\Domain\Devices::isReady() && can('devices.view')) {
+    $nav[] = ['path' => '/servers', 'label' => t('nav.servers'), 'icon' => 'server', 'match' => '/servers'];
+    $nav[] = ['path' => '/clients', 'label' => t('nav.clients'), 'icon' => 'laptop', 'match' => '/clients'];
+}
+
+$nav[] = ['path' => '/incidents', 'label' => t('nav.incidents'), 'icon' => 'alert', 'match' => '/incidents', 'count' => $openIncidents];
 
 $adminNav = [];
 if (can('users.view')) {
     $adminNav[] = ['path' => '/users', 'label' => t('nav.people'), 'icon' => 'users', 'match' => '/users'];
+}
+if (App\Domain\Devices::isReady() && can('devices.enroll')) {
+    $adminNav[] = ['path' => '/devices/enrollment', 'label' => t('nav.enrollment'), 'icon' => 'key', 'match' => '/devices/enrollment'];
 }
 if (can('locations.manage')) {
     $adminNav[] = ['path' => '/locations', 'label' => t('nav.locations'), 'icon' => 'pin', 'match' => '/locations'];
@@ -178,6 +190,7 @@ $isActive = static function (string $match) use ($currentPath): bool {
 <script src="<?= asset('assets/js/app.js') ?>" defer></script>
 <script src="<?= asset('assets/js/tape.js') ?>" defer></script>
 <script src="<?= asset('assets/js/worldmap.js') ?>" defer></script>
+<script src="<?= asset('assets/js/devices.js') ?>" defer></script>
 <script src="<?= asset('assets/js/live.js') ?>" defer></script>
 <?php if (!empty($needsCharts)): ?>
     <script src="<?= asset('assets/vendor/uPlot.iife.min.js') ?>" defer></script>

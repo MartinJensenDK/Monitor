@@ -3,9 +3,13 @@
 declare(strict_types=1);
 
 use App\Core\Router;
+use App\Http\Controllers\AgentApiController;
+use App\Http\Controllers\AgentScriptController;
 use App\Http\Controllers\ApiController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DevicesController;
+use App\Http\Controllers\EnrollmentController;
 use App\Http\Controllers\EntraController;
 use App\Http\Controllers\GroupsController;
 use App\Http\Controllers\IncidentsController;
@@ -54,6 +58,45 @@ return static function (Router $router): void {
     $router->post('/monitors/{id}/toggle', [MonitorsController::class, 'toggle'])->can('monitors.pause');
     $router->post('/monitors/{id}/check-now', [MonitorsController::class, 'checkNow'])->can('monitors.edit');
     $router->post('/monitors/{id}/delete', [MonitorsController::class, 'destroy'])->can('monitors.delete');
+
+    // Machines that report about themselves. Servers and Clients are the same
+    // page filtered two ways; a machine's own page is addressed by its uuid, so
+    // nobody can walk the list by counting.
+    $router->get('/servers', [DevicesController::class, 'servers'])->can('devices.view');
+    $router->get('/clients', [DevicesController::class, 'clients'])->can('devices.view');
+
+    // Declared before /devices/{uuid}, which would otherwise swallow it.
+    $router->get('/devices/enrollment', [EnrollmentController::class, 'index'])->can('devices.enroll');
+    $router->post('/devices/enrollment', [EnrollmentController::class, 'store'])->can('devices.enroll');
+    $router->post('/devices/enrollment/{id}/revoke', [EnrollmentController::class, 'revoke'])->can('devices.enroll');
+    $router->post('/devices/enrollment/{id}/delete', [EnrollmentController::class, 'destroy'])->can('devices.enroll');
+
+    $router->get('/devices/{uuid}', [DevicesController::class, 'show'])->can('devices.view');
+    $router->get('/api/devices/{uuid}/logs', [DevicesController::class, 'logs'])->can('devices.view');
+    $router->get('/devices/{uuid}/edit', [DevicesController::class, 'edit'])->can('devices.manage');
+    $router->post('/devices/{uuid}', [DevicesController::class, 'update'])->can('devices.manage');
+    $router->post('/devices/{uuid}/commands', [DevicesController::class, 'command'])->can('devices.command');
+    $router->post('/devices/{uuid}/commands/{id}/cancel', [DevicesController::class, 'cancelCommand'])->can('devices.command');
+    $router->post('/devices/{uuid}/revoke', [DevicesController::class, 'revoke'])->can('devices.manage');
+    $router->post('/devices/{uuid}/delete', [DevicesController::class, 'destroy'])->can('devices.delete');
+
+    // The agent and its installer. Open, because a machine has to fetch the
+    // agent before it has anything to prove itself with, and neither script
+    // holds a secret.
+    $router->get('/agent/{platform}/{script}', [AgentScriptController::class, 'show'])->public();
+
+    // What the agent posts to. No session and no CSRF token: these authenticate
+    // with a bearer token, which is not something a browser can be tricked into
+    // attaching to a cross-site request.
+    $router->post('/api/agent/enroll', [AgentApiController::class, 'enroll'])->api();
+    $router->post('/api/agent/report', [AgentApiController::class, 'report'])->api();
+
+    // The live channel: small, frequent, and answering one question only --
+    // is there anything waiting for this machine.
+    $router->post('/api/agent/poll', [AgentApiController::class, 'poll'])->api();
+
+    // Lines from the agent, sent while it works rather than after.
+    $router->post('/api/agent/log', [AgentApiController::class, 'log'])->api();
 
     // Incidents
     $router->get('/incidents', [IncidentsController::class, 'index'])->can('incidents.view');

@@ -145,7 +145,8 @@ final class App
                 throw HttpException::forbidden();
             }
 
-            if (in_array($request->method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)
+            if (!$route->csrfExempt
+                && in_array($request->method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)
                 && !Csrf::check($request->input('_csrf'))) {
                 throw new HttpException(419);
             }

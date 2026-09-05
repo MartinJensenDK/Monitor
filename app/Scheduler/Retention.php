@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Scheduler;
 
 use App\Core\Db;
+use App\Domain\Devices;
 use App\Domain\Settings;
 
 /**
@@ -32,6 +33,39 @@ final class Retention
             'DELETE FROM {{stats_hour}} WHERE `bucket` < DATE_SUB(UTC_TIMESTAMP(), INTERVAL ? DAY) LIMIT 5000',
             Settings::int('retention_hours_days', 400)
         );
+
+        // Readings from machines, kept for the same reason raw checks are not:
+        // the charts only ever look back a month, and a fleet of a hundred
+        // machines writes a row each every five minutes.
+        if (Devices::isReady()) {
+            $removed['device_metrics'] = self::deleteInBatches(
+                'DELETE FROM {{device_metrics}} WHERE `captured_at` < DATE_SUB(UTC_TIMESTAMP(), INTERVAL ? DAY) LIMIT 5000',
+                Settings::int('retention_device_metrics_days', 30)
+            );
+
+            $removed['device_events'] = self::deleteInBatches(
+                'DELETE FROM {{device_events}} WHERE `created_at` < DATE_SUB(UTC_TIMESTAMP(), INTERVAL ? DAY) LIMIT 5000',
+                Settings::int('retention_device_events_days', 180)
+            );
+
+            // What the agent said about itself. The shortest life of any of
+            // these: a fleet installing updates writes a line per line of
+            // output, and a month-old progress message from apt is of no
+            // interest to anybody. What was *concluded* from it survives in
+            // device_events, which is kept far longer.
+            $removed['device_logs'] = self::deleteInBatches(
+                'DELETE FROM {{device_logs}} WHERE `received_at` < DATE_SUB(UTC_TIMESTAMP(), INTERVAL ? DAY) LIMIT 5000',
+                Settings::int('retention_device_logs_days', 14)
+            );
+
+            // A command that finished is worth reading for a while and then
+            // not; the audit log keeps the fact that somebody asked.
+            $removed['device_commands'] = Db::execute(
+                'DELETE FROM {{device_commands}}
+                 WHERE `status` NOT IN (\'queued\',\'claimed\')
+                   AND `requested_at` < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 30 DAY)'
+            );
+        }
 
         $removed['login_attempts'] = Db::execute(
             'DELETE FROM {{login_attempts}} WHERE `attempted_at` < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 7 DAY)'

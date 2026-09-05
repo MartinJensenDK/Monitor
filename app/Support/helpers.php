@@ -80,6 +80,58 @@ if (!function_exists('format_ms')) {
     }
 }
 
+if (!function_exists('format_bytes')) {
+    /**
+     * Storage and memory, at the precision a person reading a card wants: one
+     * decimal until the number is big enough not to need it.
+     */
+    function format_bytes(?int $bytes): string
+    {
+        if ($bytes === null) {
+            return '—';
+        }
+        if ($bytes < 1024) {
+            return $bytes . ' B';
+        }
+
+        $units = ['KB', 'MB', 'GB', 'TB', 'PB'];
+        $value = $bytes / 1024;
+        $unit = 0;
+        while ($value >= 1024 && $unit < count($units) - 1) {
+            $value /= 1024;
+            $unit++;
+        }
+
+        $decimals = $value >= 100 ? 0 : 1;
+
+        return number_format($value, $decimals, '.', '') . ' ' . $units[$unit];
+    }
+}
+
+if (!function_exists('percent_of')) {
+    /** Used-of-total as a whole percentage, or null when there is no total. */
+    function percent_of(?int $used, ?int $total): ?int
+    {
+        if ($used === null || $total === null || $total <= 0) {
+            return null;
+        }
+
+        return (int) round(min(100, max(0, $used / $total * 100)));
+    }
+}
+
+if (!function_exists('meter_level')) {
+    /** Which of the three colours a usage bar should be at this percentage. */
+    function meter_level(?int $percent): string
+    {
+        if ($percent === null) {
+            return 'idle';
+        }
+
+        return $percent >= 90 ? 'down' : ($percent >= 75 ? 'warn' : 'up');
+    }
+}
+
 if (!function_exists('format_uptime')) {
     function format_uptime(?float $ratio): string
     {

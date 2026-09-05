@@ -15,8 +15,10 @@ final class Users
         $where = '1 = 1';
         $params = [];
         if ($search !== '') {
-            $where = '(`name` LIKE :q OR `email` LIKE :q)';
-            $params['q'] = '%' . $search . '%';
+            // Two placeholders rather than :q twice -- see the note in
+            // App\Domain\Devices::visible().
+            $where = '(`name` LIKE :q_name OR `email` LIKE :q_email)';
+            $params['q_name'] = $params['q_email'] = '%' . $search . '%';
         }
 
         return Db::select(

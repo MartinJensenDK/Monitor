@@ -222,6 +222,33 @@ least one monitor there is shared with a group you are in. Editors and
 administrators may keep the list. Deleting a location leaves its monitors
 running, with their history intact — they simply come off the map.
 
+## Servers and clients
+
+Optional. A small agent installed on a machine reports what it looks like from
+the inside — hardware, operating system, disk pressure, pending updates, running
+services, listening ports — and fills the **Servers** and **Clients** pages.
+
+Make an enrolment key under **Enrolment** in the sidebar, then run one command
+on the machine. The page prints it with your address and key already in it:
+
+```sh
+curl -fsSLO https://monitor.example.com/agent/linux/install.sh
+sudo sh install.sh --key mek_...
+```
+
+```powershell
+irm https://monitor.example.com/agent/windows/install.ps1 -OutFile install.ps1
+.\install.ps1 -Key mek_...
+```
+
+The agent needs `curl` and root on Linux, or an elevated PowerShell on Windows,
+and nothing else — no runtime is installed. It connects outward only, so nothing
+is opened on the machine. Reports are pruned by the same cron entry as
+everything else, so there is nothing further to set up here.
+
+[AGENT.md](AGENT.md) covers the options, the enrolment keys, the four commands a
+machine can be asked to carry out, and what happens when one goes quiet.
+
 ## Signing in with Microsoft
 
 Optional. Monitor can use Microsoft Entra ID for sign-in, for group membership,

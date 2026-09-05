@@ -125,6 +125,21 @@ final class Request
         return is_string($value) ? $value : $default;
     }
 
+    /** The raw request body, as posted. Only populated for JSON requests. */
+    public function body(): string
+    {
+        return $this->body;
+    }
+
+    /**
+     * How much the client says it is sending. Read before the body is used, so
+     * an endpoint can refuse something enormous rather than parse it.
+     */
+    public function contentLength(): int
+    {
+        return (int) ($this->server['CONTENT_LENGTH'] ?? 0);
+    }
+
     public function header(string $name): ?string
     {
         $key = 'HTTP_' . strtoupper(str_replace('-', '_', $name));
