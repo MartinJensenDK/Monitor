@@ -29,10 +29,10 @@ LC_ALL=C
 export LC_ALL
 
 # The two agents carry one version between them and move together, so that
-# "this machine is on 1.2.0" means the same thing whichever it is running. A
+# "this machine is on 1.3.0" means the same thing whichever it is running. A
 # change to one is a release of both, even when the other needed nothing:
 # tools/check-agent.sh and check-agent.ps1 both refuse to pass if they differ.
-AGENT_VERSION="1.2.0"
+AGENT_VERSION="1.3.0"
 CONF="${MONITOR_CONF:-/etc/monitor-agent/agent.conf}"
 
 MONITOR_URL=""
@@ -584,6 +584,43 @@ updates_items() {
     fi
 }
 
+# Ask the machine's update sources what they have now.
+#
+# Not quiet: this is the one command somebody presses a button for and then
+# watches, so every line the package manager writes is streamed to Monitor as
+# it appears. -q only drops the progress bars, which are meaningless without a
+# terminal to redraw.
+refresh_lists() {
+    if have apt-get; then apt-get -q update
+    elif have dnf; then dnf -q makecache
+    elif have zypper; then zypper --non-interactive refresh
+    elif have apk; then apk update
+    elif have pacman; then pacman -Sy --noconfirm
+    else echo "No package manager this agent knows." >&2; return 1
+    fi
+}
+
+# What the refreshed lists now say is waiting, in one line.
+#
+# Read back through the same reader the report uses, so the number said here
+# and the list that arrives moments later cannot disagree.
+summarise_updates() {
+    items="$WORK/pending.json"
+    updates_items > "$items" 2>/dev/null || true
+
+    total="$(grep -o '{"name":' "$items" 2>/dev/null | wc -l | tr -d ' ')"
+    security="$(grep -o '"is_security":true' "$items" 2>/dev/null | wc -l | tr -d ' ')"
+    rm -f "$items"
+
+    if [ "${total:-0}" -eq 0 ] 2>/dev/null; then
+        echo "Lists refreshed. Nothing is waiting."
+    elif [ "${security:-0}" -eq 0 ] 2>/dev/null; then
+        echo "Lists refreshed. $total update(s) waiting."
+    else
+        echo "Lists refreshed. $total update(s) waiting, $security of them security."
+    fi
+}
+
 updates_json() {
     printf '"updates":{"reboot_required":%s,"security_count":0,"items":[' "$(reboot_required)"
     updates_items
@@ -687,14 +724,17 @@ run_command() {
             return 0
             ;;
         refresh_updates)
-            if have apt-get; then apt-get -qq update >/dev/null 2>&1 && echo "Package lists refreshed."
-            elif have dnf; then dnf -q makecache >/dev/null 2>&1 && echo "Metadata refreshed."
-            elif have zypper; then zypper --non-interactive --quiet refresh >/dev/null 2>&1 && echo "Repositories refreshed."
-            elif have apk; then apk update >/dev/null 2>&1 && echo "Index refreshed."
-            elif have pacman; then pacman -Sy --noconfirm >/dev/null 2>&1 && echo "Database refreshed."
-            else echo "No package manager this agent knows." >&2; return 1
-            fi
-            return $?
+            # The one command that goes out to the machine's update sources.
+            # Everything else here reads what is already on disk: the report
+            # asks apt what it would upgrade, which answers from lists that may
+            # be a week old. This is the equivalent of running apt-get update
+            # by hand, and the package manager's own output goes on the record
+            # line by line as it arrives -- a repository that cannot be reached
+            # says so in its own words, which is worth more than any summary
+            # this agent could write about it.
+            refresh_lists || return $?
+            summarise_updates
+            return 0
             ;;
         update_agent)
             # Asked for rather than noticed, so it reinstalls even when the
@@ -1148,7 +1188,11 @@ stream_command() {
     : > "$WORK/cmd.out"
     : > "$WORK/cmd.status"
 
-    { run_command "$2" 2>&1; printf '%s' "$?" > "$WORK/cmd.status"; } \
+    # The || is what keeps set -e out of this: without it a command that
+    # exits non-zero takes the subshell with it before the status is written,
+    # and every failure arrives as a bare 1. apt-get returning 100 for a
+    # repository it could not reach is worth more than that.
+    { status=0; run_command "$2" 2>&1 || status=$?; printf '%s' "$status" > "$WORK/cmd.status"; } \
     | while IFS= read -r line || [ -n "$line" ]; do
         printf '%s\n' "$line" >> "$WORK/cmd.out"
         log info "$line" "$1"

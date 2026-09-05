@@ -39,10 +39,10 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # The two agents carry one version between them and move together, so that
-# "this machine is on 1.2.0" means the same thing whichever it is running.
+# "this machine is on 1.3.0" means the same thing whichever it is running.
 # A change to one is a release of both, even when the other needed nothing:
 # tools/check-agent.sh and check-agent.ps1 both refuse to pass if they differ.
-$AgentVersion = '1.2.0'
+$AgentVersion = '1.3.0'
 
 # What the last failure was. These are how the installer tells "this machine is
 # not who it says it is" from "that did not get through" -- they are not the
@@ -555,8 +555,17 @@ function Test-RebootPending {
 function Get-PendingUpdates {
     $items = @()
     try {
+        # Read what Windows already knows, rather than going out to Windows
+        # Update for it. A report happens every few minutes and an online scan
+        # is a minute of work and a network round trip -- doing that on a
+        # schedule would be the most expensive thing this agent does, for an
+        # answer that changes once a day. Going out and asking is what **Check
+        # for updates** is for, and it is the same split Linux has always had:
+        # the report asks apt what it would upgrade, the command refreshes the
+        # lists it asks against.
         $session = New-Object -ComObject Microsoft.Update.Session
         $searcher = $session.CreateUpdateSearcher()
+        $searcher.Online = $false
         $result = $searcher.Search('IsInstalled=0 AND IsHidden=0')
 
         foreach ($update in $result.Updates) {
@@ -684,11 +693,39 @@ function Invoke-AgentCommand {
         }
 
         'refresh_updates' {
+            # The one command that goes out to Windows Update rather than
+            # reading what was cached the last time something did. Online is
+            # set here explicitly, and deliberately not set in the reader the
+            # report uses: this is apt-get update, and that is apt-get -s
+            # upgrade.
             try {
+                $said = @()
+                $said += Write-CommandLine -Id $CommandId -Text 'Asking Windows Update what is available. This can take a minute.'
+
                 $session = New-Object -ComObject Microsoft.Update.Session
                 $searcher = $session.CreateUpdateSearcher()
+                $searcher.Online = $true
                 $result = $searcher.Search('IsInstalled=0 AND IsHidden=0')
-                return @{ ok = $true; exit_code = 0; output = "$($result.Updates.Count) update(s) available."; error = '' }
+
+                $security = 0
+                foreach ($update in $result.Updates) {
+                    foreach ($category in $update.Categories) {
+                        if ($category.Name -match 'Security|Critical') { $security++; break }
+                    }
+                }
+
+                $total = $result.Updates.Count
+                if ($total -eq 0) {
+                    $last = 'Windows Update answered. Nothing is waiting.'
+                } elseif ($security -eq 0) {
+                    $last = "Windows Update answered. $total update(s) waiting."
+                } else {
+                    $last = "Windows Update answered. $total update(s) waiting, $security of them security."
+                }
+
+                $said += Write-CommandLine -Id $CommandId -Text $last
+
+                return @{ ok = $true; exit_code = 0; output = ($said -join "`n"); error = '' }
             } catch {
                 return @{ ok = $false; exit_code = 1; output = ''; error = "Windows Update could not be queried: $($_.Exception.Message)" }
             }

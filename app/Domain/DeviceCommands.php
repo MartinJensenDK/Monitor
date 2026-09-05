@@ -37,7 +37,7 @@ final class DeviceCommands
             ],
             'refresh_updates' => [
                 'label' => 'Check for updates',
-                'hint' => 'Re-reads what the package manager has available. Installs nothing.',
+                'hint' => 'Goes out to the machine\'s update sources for a fresh list — apt-get update, or a Windows Update scan — and says what is waiting. Installs nothing.',
                 'changes' => false,
                 'icon' => 'history',
             ],

@@ -221,7 +221,7 @@ Five things, and only five:
 | | |
 |---|---|
 | **Report now** | Sends a fresh report at the next check-in instead of waiting out the interval |
-| **Check for updates** | Re-reads what the package manager has available. Installs nothing |
+| **Check for updates** | Goes out to the machine's update sources for a fresh list, and says what is waiting. Installs nothing |
 | **Update the agent** | Reinstalls the agent from the version this server holds |
 | **Install updates** | Applies the pending updates |
 | **Restart** | Restarts the machine |
@@ -245,6 +245,33 @@ outcome and the picture it produced arrive together.
 Commands expire. One that nobody collected within the hour is closed off, so a
 laptop coming back from a drawer does not start rebooting on the strength of a
 decision made in another world.
+
+### Check for updates, on each side
+
+**Check for updates** is the only command that goes out to the network on the
+machine's behalf, and it is the same job on both platforms:
+
+- On Linux it runs the package manager's own refresh — `apt-get update`,
+  `dnf makecache`, `zypper refresh`, `apk update`, `pacman -Sy` — and the
+  manager's output is streamed to the machine's log line by line as it arrives.
+  A repository that cannot be reached says so in its own words, and the exit
+  code the manager gave is the one recorded.
+- On Windows it asks the Windows Update agent with `Online = $true`, which is
+  the same round trip. It has no line-by-line output to stream, so what arrives
+  is one line before and one after.
+
+Both finish with the same sentence: how many updates are waiting, and how many
+of those are security. Then the agent reports, so the list on the machine's
+page is the one that was just fetched.
+
+The **report** deliberately does not do any of this. It asks what is already on
+disk — `apt-get -s upgrade` against the lists as they stand, `Online = $false`
+on Windows — because a report happens every few minutes and going out to the
+network on that schedule would be the most expensive thing the agent does, for
+an answer that changes about once a day. The consequence is worth knowing: a
+machine whose lists have never been refreshed shows nothing waiting until
+something refreshes them, which on Linux is any `apt update` and on Windows is
+Windows Update's own daily scan — or this button, on either.
 
 ---
 
@@ -403,7 +430,7 @@ one idea of sharing, so a new page cannot invent a second one.
 ## One version, two agents
 
 The Linux and Windows agents carry the same version number and are released
-together, so "this machine is on 1.2.0" means the same thing whichever one it
+together, so "this machine is on 1.3.0" means the same thing whichever one it
 is running. A fix to one is a release of both, even when the other needed
 nothing — otherwise the numbers drift and stop meaning anything, and this
 server ends up offering a version to a platform that never got it. Both check
