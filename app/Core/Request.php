@@ -22,7 +22,8 @@ final class Request
         private array $post,
         private array $server,
         private array $cookies,
-        private string $body = ''
+        private string $body = '',
+        private bool $jsonUnreadable = false
     ) {
     }
 
@@ -35,12 +36,19 @@ final class Request
 
         $post = $_POST;
         $body = '';
+        $unreadable = false;
         $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
         if (str_contains($contentType, 'application/json')) {
             $body = (string) file_get_contents('php://input');
             $decoded = json_decode($body, true);
             if (is_array($decoded)) {
                 $post = $decoded + $post;
+            } elseif (trim($body) !== '') {
+                // Something was sent and none of it could be read. Remembered
+                // rather than shrugged off: an endpoint that carries on with an
+                // empty payload here would take a machine's whole report,
+                // understand none of it, and store the nothing it understood.
+                $unreadable = true;
             }
         }
 
@@ -52,7 +60,7 @@ final class Request
             }
         }
 
-        return new self($method, $path, $_GET, $post, $_SERVER, $_COOKIE, $body);
+        return new self($method, $path, $_GET, $post, $_SERVER, $_COOKIE, $body, $unreadable);
     }
 
     /** @param array<string,string> $params */
@@ -129,6 +137,17 @@ final class Request
     public function body(): string
     {
         return $this->body;
+    }
+
+    /**
+     * A JSON body arrived and could not be decoded -- malformed, truncated, or
+     * not valid UTF-8, which json_decode refuses outright. Distinct from an
+     * empty body, and worth distinguishing: one is a machine with nothing to
+     * say, the other is a machine whose whole report was thrown away.
+     */
+    public function jsonUnreadable(): bool
+    {
+        return $this->jsonUnreadable;
     }
 
     /**

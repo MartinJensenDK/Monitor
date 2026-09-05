@@ -15,7 +15,7 @@
 
 set -eu
 
-AGENT_VERSION="1.1.0"
+AGENT_VERSION="1.1.1"
 CONF="${MONITOR_CONF:-/etc/monitor-agent/agent.conf}"
 
 MONITOR_URL=""
@@ -196,6 +196,27 @@ log() {
     printf '%s\t%s\t%s\t%s\n' "$stamp" "$lvl" "${3:-}" "$msg" >> "$OUTBOX" 2>/dev/null || true
 }
 
+# Make a document safe to send, in the one way that cannot be done field by
+# field.
+#
+# Everything this agent reads is somebody else's text -- a package
+# description, a service unit, a mount point -- and a machine is under no
+# obligation to have it in UTF-8. A single stray byte from an old changelog
+# makes the whole document undecodable at the far end, and the far end is
+# right to refuse it, so one bad byte in one package name would throw away the
+# entire report. iconv drops just the offending sequences.
+#
+# There is no fallback that is better than sending it as it is: a machine
+# without iconv is almost certainly a busybox one, where the text in question
+# came from a package manager that only ever emits ASCII.
+sanitise_json() {
+    if have iconv && iconv -f UTF-8 -t UTF-8 -c < "$1" > "$1.clean" 2>/dev/null; then
+        mv "$1.clean" "$1"
+    else
+        rm -f "$1.clean"
+    fi
+}
+
 outbox_json() {
     printf '{"logs":['
     awk -F'\t' "$AWK_ESC"'
@@ -234,6 +255,7 @@ ship_logs() {
     mv "$OUTBOX.rest" "$OUTBOX" 2>/dev/null || true
 
     outbox_json "$batch" > "$WORK/logs.json"
+    sanitise_json "$WORK/logs.json"
 
     # Its own response file. This is called from the middle of a command, and
     # the answer being acted on at that point is the one still sitting in
@@ -856,6 +878,38 @@ build_report() {
         printf ',"results":[%s]' "$results"
         printf '}'
     } > "$WORK/report.json"
+
+    sanitise_json "$WORK/report.json"
+
+    if report_is_whole "$WORK/report.json"; then
+        return 0
+    fi
+
+    log error "The report came out incomplete and was not sent. Run 'agent.sh --dump' on this machine to see where it stops."
+    return 1
+}
+
+# Does this at least start and finish like a document?
+#
+# Every field in a report is gathered by running something, and a machine where
+# one of those dies mid-sentence produces a file that simply stops. There is no
+# JSON parser here to say more than that, and there does not need to be: the
+# server refuses what it cannot read and says so, which covers everything this
+# misses. What this catches is the one case worth catching on the machine --
+# nothing to send at all.
+report_is_whole() {
+    [ -s "$1" ] || return 1
+
+    case "$(head -c 1 "$1" 2>/dev/null)" in
+        '{') ;;
+        *) return 1 ;;
+    esac
+
+    case "$(tail -c 1 "$1" 2>/dev/null)" in
+        '}') return 0 ;;
+    esac
+
+    return 1
 }
 
 # The schedule this agent actually runs on.
@@ -1066,7 +1120,7 @@ enroll() {
     [ -n "${MONITOR_ENROLL_KEY:-}" ] || { echo "monitor-agent: no enrolment key given." >&2; return 2; }
 
     MONITOR_TOKEN="$MONITOR_ENROLL_KEY"
-    build_report ""
+    build_report "" || return 1
     code="$(post "/api/agent/enroll" "$WORK/report.json")"
 
     if [ "$code" != "201" ] && [ "$code" != "200" ]; then
@@ -1152,13 +1206,21 @@ CONFEOF
 
 run_once() {
     results="$1"
-    build_report "$results"
+    build_report "$results" || return 1
     code="$(post "/api/agent/report" "$WORK/report.json")"
 
     case "$code" in
         200)
             log debug "Reported."
             handle_response || return 0
+            ;;
+        400)
+            # The server could not read what was sent. Almost always this
+            # agent's fault rather than the machine's, and worth saying so in
+            # the words that lead somewhere.
+            echo "monitor-agent: the server could not read this report. Compare 'agent.sh --dump' against what it expects." >&2
+            log error "The server could not read this report: $(cat "$WORK/response" 2>/dev/null | cut -c 1-200)"
+            return 1
             ;;
         401)
             echo "monitor-agent: this machine's token was refused. It may have been revoked; re-run the installer to enrol again." >&2
@@ -1275,7 +1337,7 @@ case "${1:-}" in
     --enroll) enroll || STATUS=$? ;;
     # Prints the report instead of sending it. Nothing leaves the machine, and
     # it is the fastest way to see what this agent can actually read here.
-    --dump) build_report ""; cat "$WORK/report.json"; echo; exit 0 ;;
+    --dump) build_report "" || true; cat "$WORK/report.json"; echo; exit 0 ;;
     # One knock on the live channel, printed. For working out why a command is
     # not arriving.
     --poll) if poll_once; then cat "$WORK/response"; echo; else STATUS=$?; fi ;;

@@ -319,6 +319,69 @@ else
 fi
 
 echo
+echo 'What gets sent'
+
+# Everything the agent reads is somebody else's text, and a machine is under no
+# obligation to have it in UTF-8. One stray byte makes the whole document
+# undecodable at the far end -- so one bad byte in one package name would throw
+# away an entire report.
+got=$(agent_case <<'CASEEOF'
+printf '{"system":{"os_name":"caf\351 edition"},"metrics":{}}' > "$WORK/dirty.json"
+sanitise_json "$WORK/dirty.json"
+cat "$WORK/dirty.json"
+CASEEOF
+)
+if [ "$got" = '{"system":{"os_name":"caf edition"},"metrics":{}}' ]; then
+    ok 'a byte that is not UTF-8 is dropped, not the report'
+else
+    bad 'a byte that is not UTF-8 is dropped, not the report' \
+        '{"system":{"os_name":"caf edition"},"metrics":{}}' "$got"
+fi
+
+got=$(agent_case <<'CASEEOF'
+printf '{"system":{"os_name":"Ubuntu 24.04 LTS – Ørestad"},"metrics":{}}' > "$WORK/clean.json"
+sanitise_json "$WORK/clean.json"
+cat "$WORK/clean.json"
+CASEEOF
+)
+if [ "$got" = '{"system":{"os_name":"Ubuntu 24.04 LTS – Ørestad"},"metrics":{}}' ]; then
+    ok 'and text that is UTF-8 goes through untouched'
+else
+    bad 'and text that is UTF-8 goes through untouched' 'the accents intact' "$got"
+fi
+
+got=$(agent_case <<'CASEEOF'
+system_json() { printf '"system":{"hostname":"box","agent_version":"1.1.0"}'; }
+metrics_json() { printf '"metrics":{}'; }
+MONITOR_COLLECT=""
+build_report ""
+printf 'exit=%s ' "$?"
+cat "$WORK/report.json"
+CASEEOF
+)
+case "$got" in
+    'exit=0 {"system":{"hostname":"box","agent_version":"1.1.0"},"metrics":{},"collected":[],'*'"self_update":true,"results":[]}')
+        ok 'a whole report is built and says what it consents to' ;;
+    *) bad 'a whole report is built and says what it consents to' 'a complete document, exit 0' "$got" ;;
+esac
+
+got=$(agent_case <<'CASEEOF'
+printf '{"system":{"hostname":"box"}}' > "$WORK/whole"
+printf '{"system":{"hostname":"bo'      > "$WORK/cut"
+: > "$WORK/empty"
+printf 'monitor-agent: not configured\n' > "$WORK/prose"
+for f in whole cut empty prose; do
+    if report_is_whole "$WORK/$f"; then printf '%s=whole ' "$f"; else printf '%s=no ' "$f"; fi
+done
+CASEEOF
+)
+if [ "$got" = 'whole=whole cut=no empty=no prose=no ' ]; then
+    ok 'and one that stopped part way is not sent'
+else
+    bad 'and one that stopped part way is not sent' 'whole=whole cut=no empty=no prose=no' "$got"
+fi
+
+echo
 echo 'Running a command'
 
 # run_command is replaced with something that talks, slowly, and fails: what is

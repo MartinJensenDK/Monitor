@@ -310,6 +310,15 @@ final class AgentApiController extends Controller
             return $this->fail(413, 'report_too_large');
         }
 
+        // Said plainly rather than accepted and quietly dropped. A report that
+        // cannot be decoded used to arrive here as an empty array, and an empty
+        // array is indistinguishable from a machine that reported nothing about
+        // itself -- so a single bad byte in one package name would overwrite a
+        // machine's hostname, operating system and every list with null.
+        if ($request->jsonUnreadable()) {
+            return $this->fail(400, 'unreadable_body');
+        }
+
         if (!$request->isSecure() && str_starts_with(Config::string('app.url'), 'https://')) {
             return $this->fail(400, 'https_required');
         }
