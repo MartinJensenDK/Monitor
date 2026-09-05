@@ -382,6 +382,58 @@ else
 fi
 
 echo
+echo 'Numbers, wherever the machine thinks it is'
+
+# This is the bug that made a whole fleet's worth of report undecodable from
+# one desktop: mawk -- which is what awk is on Debian and Ubuntu -- formats %f
+# through the locale, so "11.07" came out of a Danish machine as "11,07".
+got=$(agent_case <<'CASEEOF'
+printf '%s ' "$(jnum 11.07)" "$(jnum 11,07)" "$(jnum 0)" "$(jnum -3.5)"
+printf '| '
+printf '%s ' "$(jnum '')" "$(jnum null)" "$(jnum 1.2.3)" "$(jnum '1,234,567')" "$(jnum -)" "$(jnum 'nan')"
+CASEEOF
+)
+if [ "$got" = "11.07 11.07 0 -3.5 | null null null null null null " ]; then
+    ok 'a decimal comma is a number; nonsense is null'
+else
+    bad 'a decimal comma is a number; nonsense is null' \
+        '11.07 11.07 0 -3.5 | null null null null null null' "$got"
+fi
+
+# And the whole report, built the way that desktop builds it. Skipped where
+# neither mawk nor a comma locale is installed, which is most servers -- and is
+# exactly why this went unnoticed.
+comma_locale=""
+for candidate in da_DK.utf8 de_DE.utf8 fr_FR.utf8 da_DK.UTF-8 de_DE.UTF-8; do
+    if locale -a 2>/dev/null | grep -qx "$candidate"; then comma_locale="$candidate"; break; fi
+done
+
+if [ -n "$comma_locale" ]; then
+    shim="$WORK/shim"
+    mkdir -p "$shim"
+    if command -v mawk >/dev/null 2>&1; then ln -sf "$(command -v mawk)" "$shim/awk"; fi
+
+    cat > "$WORK/dump.conf" <<CONFEOF
+MONITOR_URL="https://monitor.example.com"
+MONITOR_TOKEN="mdt_aabbccddeeff00112233445566778899"
+MONITOR_COLLECT="disks"
+MONITOR_LEVEL="error"
+CONFEOF
+
+    LC_ALL="$comma_locale" PATH="$shim:$PATH" \
+        MONITOR_CONF="$WORK/dump.conf" MONITOR_LOG="$WORK/dump.log" MONITOR_STATE="$WORK/dump-state" \
+        sh "$AGENT_DIR/agent.sh" --dump > "$WORK/dump.json" 2>/dev/null || true
+
+    if grep -q '"cpu_percent":[0-9-]*,[0-9]' "$WORK/dump.json" 2>/dev/null; then
+        bad "a whole report under $comma_locale" 'a decimal point' "$(grep -o '\"cpu_percent\":[^,]*,[0-9]*' "$WORK/dump.json")"
+    elif grep -q '"cpu_percent":' "$WORK/dump.json" 2>/dev/null; then
+        ok "a whole report under $comma_locale keeps its decimal points"
+    else
+        bad "a whole report under $comma_locale" 'a report with metrics in it' "$(head -c 120 "$WORK/dump.json")"
+    fi
+fi
+
+echo
 echo 'Reading the disks'
 
 # df exits non-zero when a single mount cannot be stat'ed, which on a desktop

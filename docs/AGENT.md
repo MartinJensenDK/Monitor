@@ -341,6 +341,13 @@ what it collects through `iconv` before sending, because a package description
 or a service unit is somebody else's text and a machine is under no obligation
 to keep it in UTF-8; a stray byte is dropped rather than the report.
 
+The agent runs under `LC_ALL=C` throughout, because JSON is not a
+locale-dependent format. `mawk` — which is what `awk` is on Debian and Ubuntu —
+formats `%f` through the locale, so a machine in Denmark reported its processor
+load as `11,07` and made its whole report undecodable. The Windows agent avoids
+the same trap with `InvariantCulture`; both were written after being caught by
+it.
+
 Everything in a report is treated as though a stranger typed it. Strings are
 forced to valid UTF-8, stripped of control characters and cut to the width of
 the column they land in; numbers are clamped to ranges that make physical sense;

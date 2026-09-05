@@ -15,7 +15,20 @@
 
 set -eu
 
-AGENT_VERSION="1.1.2"
+# JSON is not a locale-dependent format, and this machine's locale is nobody
+# else's business.
+#
+# mawk -- which is what awk is on Debian and Ubuntu -- formats %f through the
+# locale, so on a Danish desktop "11.07" comes out as "11,07" and the entire
+# report becomes undecodable at the far end. Individual commands were already
+# being run under LC_ALL=C for their output; this covers the formatting as
+# well, and everything else that would otherwise depend on where a machine
+# happens to be. The Windows agent does the same thing with InvariantCulture,
+# for the same reason and after the same bug.
+LC_ALL=C
+export LC_ALL
+
+AGENT_VERSION="1.1.3"
 CONF="${MONITOR_CONF:-/etc/monitor-agent/agent.conf}"
 
 MONITOR_URL=""
@@ -95,12 +108,22 @@ jtext() {
         | awk '{ printf "%s\\n", $0 }')"
 }
 
-# A number, or null. Anything that is not plainly numeric becomes null rather
-# than a broken document.
+# A number, or null. Anything that is not plainly one becomes null rather than
+# a broken document.
+#
+# A decimal comma is turned into a point rather than rejected. LC_ALL=C above
+# means nothing here should produce one, but this is the second time a decimal
+# comma has broken a report, and a reading is worth more than a null.
 jnum() {
-    case "${1:-}" in
-        ''|*[!0-9.-]*) printf 'null' ;;
-        *) printf '%s' "$1" ;;
+    n="$(printf '%s' "${1:-}" | tr ',' '.')"
+
+    case "$n" in
+        *[!0-9.-]*|*.*.*|*-*-*) printf 'null'; return ;;
+    esac
+
+    case "$n" in
+        *[0-9]*) printf '%s' "$n" ;;
+        *) printf 'null' ;;
     esac
 }
 
@@ -402,7 +425,7 @@ metrics_json() {
     set -- $(cat /proc/loadavg 2>/dev/null || echo "0 0 0")
 
     printf '"metrics":{'
-    printf '"cpu_percent":%s,' "$(cpu_percent)"
+    printf '"cpu_percent":%s,' "$(jnum "$(cpu_percent)")"
     printf '"memory_used_bytes":%s,' "$(jnum "$(( (memtotal - memavail) * 1024 ))")"
     printf '"memory_total_bytes":%s,' "$(jnum "$(( memtotal * 1024 ))")"
     printf '"swap_used_bytes":%s,' "$(jnum "$(( (swaptotal - swapfree) * 1024 ))")"
