@@ -39,10 +39,10 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # The two agents carry one version between them and move together, so that
-# "this machine is on 1.4.0" means the same thing whichever it is running.
+# "this machine is on 1.5.0" means the same thing whichever it is running.
 # A change to one is a release of both, even when the other needed nothing:
 # tools/check-agent.sh and check-agent.ps1 both refuse to pass if they differ.
-$AgentVersion = '1.4.0'
+$AgentVersion = '1.5.0'
 
 # What the last failure was. These are how the installer tells "this machine is
 # not who it says it is" from "that did not get through" -- they are not the
@@ -613,9 +613,11 @@ function Get-InstalledPackages {
         foreach ($entry in Get-ItemProperty -Path $path -ErrorAction SilentlyContinue) {
             if (-not $entry.DisplayName) { continue }
             if ($entry.SystemComponent -eq 1) { continue }
-            $key = "$($entry.DisplayName)|$($entry.DisplayVersion)"
-            if ($seen.ContainsKey($key)) { continue }
-            $seen[$key] = $true
+            # $seenKey, not $key: that is the -Key parameter, and a string
+            # assigns to it without complaint -- which is worse than throwing.
+            $seenKey = "$($entry.DisplayName)|$($entry.DisplayVersion)"
+            if ($seen.ContainsKey($seenKey)) { continue }
+            $seen[$seenKey] = $true
 
             $packages += [ordered]@{
                 name      = [string]$entry.DisplayName
@@ -1079,9 +1081,10 @@ function Get-QueuedCommands {
 # inside. With it off there is nothing to keep alive, and the task goes back to
 # deciding when to report.
 function Get-SchedulerCadence {
-    $poll = 0
-    [int]::TryParse([string]$Config.MONITOR_POLL, [ref]$poll) | Out-Null
-    if ($poll -gt 0) { return 60 }
+    # $pollSeconds, not $poll: see the note in the -Loop block below.
+    $pollSeconds = 0
+    [int]::TryParse([string]$Config.MONITOR_POLL, [ref]$pollSeconds) | Out-Null
+    if ($pollSeconds -gt 0) { return 60 }
 
     $interval = 300
     [int]::TryParse([string]$Config.MONITOR_INTERVAL, [ref]$interval) | Out-Null
@@ -1375,10 +1378,15 @@ Write-AgentLog -Level 'debug' -Message "monitor-agent $AgentVersion starting ($m
 # channel need no Windows service and no supervisor: a crash costs at most one
 # minute, and the process is never long-lived enough to leak.
 if ($Loop) {
-    $poll = 0
-    [int]::TryParse([string]$Config.MONITOR_POLL, [ref]$poll) | Out-Null
+    # Not $poll. PowerShell variables are case-insensitive, so $poll IS the
+    # -Poll switch declared above, and assigning an Int32 to it throws before
+    # anything else happens. That killed every scheduled run this agent ever
+    # made -- the task runs it with -Loop -- while -Once, which the installer
+    # uses, went on working and hid it.
+    $pollSeconds = 0
+    [int]::TryParse([string]$Config.MONITOR_POLL, [ref]$pollSeconds) | Out-Null
 
-    if ($poll -le 0) {
+    if ($pollSeconds -le 0) {
         # Live channel off. There is nothing to keep alive, so behave the way
         # this agent always did: one report, then leave.
         try {
@@ -1416,10 +1424,10 @@ if ($Loop) {
         if ($remaining -le 0) { break }
 
         # The cadence may have been changed by the answer just handled.
-        [int]::TryParse([string]$Config.MONITOR_POLL, [ref]$poll) | Out-Null
-        if ($poll -le 0) { break }
+        [int]::TryParse([string]$Config.MONITOR_POLL, [ref]$pollSeconds) | Out-Null
+        if ($pollSeconds -le 0) { break }
 
-        $wait = [math]::Max(1, [math]::Min($poll, [int][math]::Floor($remaining)))
+        $wait = [math]::Max(1, [math]::Min($pollSeconds, [int][math]::Floor($remaining)))
         Start-Sleep -Seconds $wait
     }
 

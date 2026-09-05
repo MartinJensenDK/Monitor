@@ -515,7 +515,7 @@ Check 'every setting survives enrolment' ($dropped -join ',') ''
 ''
 '-- the two agents move together --'
 #
-# One version between them, so "this machine is on 1.4.0" means the same thing
+# One version between them, so "this machine is on 1.5.0" means the same thing
 # whichever agent it is running. A fix to one is a release of both, even when
 # the other needed nothing -- otherwise the numbers drift and stop meaning
 # anything, and Monitor offers a version to a platform that never got it.
@@ -593,6 +593,84 @@ if ($unresolved.Count -gt 0) {
     ''
     'Windows-only, so checked against the published reference rather than run:'
     $unresolved | Sort-Object -Unique | ForEach-Object { "  $_" }
+}
+
+# ------------------------------------- 6. nothing shadows a parameter by accident ---
+#
+# PowerShell variable names are case-insensitive, so $poll inside the script IS
+# the -Poll parameter declared at the top of it. Assigning to one of those is
+# either a hard throw -- an Int32 into a [switch] -- or, worse, a silent
+# clobber of what somebody typed on the command line.
+#
+# This has now shipped twice. $allowUpdates quietly overrode -AllowUpdates in
+# the installer, and $poll = 0 threw on every -Loop run of the agent, which is
+# the only way the scheduled task ever starts it: the live channel had never
+# once worked on Windows and the installer's own -Once check hid it.
+#
+# The installer deliberately reassigns four of its own parameters, resolving
+# "asked for, then already here, then the default". Those are named here so the
+# rule can be absolute everywhere else.
+$deliberate = @{ 'install.ps1' = @('Url', 'Interval', 'Poll', 'Collect', 'Level') }
+
+''
+'-- no variable shadows a parameter --'
+foreach ($file in $scripts) {
+    $leaf = Split-Path -Leaf $file
+    $tokens = $null; $errors = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$tokens, [ref]$errors)
+
+    $block = $ast.ParamBlock
+    if (-not $block) { continue }
+
+    # Keyed by the lowered name, because that is how PowerShell matches them,
+    # but carrying the declared spelling so the message names the real switch.
+    $parameters = @{}
+    foreach ($p in $block.Parameters) {
+        $parameters[$p.Name.VariablePath.UserPath.ToLower()] = [pscustomobject]@{
+            Name = $p.Name.VariablePath.UserPath
+            Type = $p.StaticType.Name
+        }
+    }
+
+    $allowed = @()
+    if ($deliberate.ContainsKey($leaf)) { $allowed = $deliberate[$leaf] | ForEach-Object { $_.ToLower() } }
+
+    $clashes = @()
+    foreach ($assignment in $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.AssignmentStatementAst] }, $true)) {
+        $target = $assignment.Left
+        if ($target -isnot [System.Management.Automation.Language.VariableExpressionAst]) { continue }
+
+        $name = $target.VariablePath.UserPath.ToLower()
+        if (-not $parameters.ContainsKey($name)) { continue }
+        if ($allowed -contains $name) { continue }
+
+        $clashes += '{0}:{1} ${2} is the -{3} parameter ({4})' -f
+            $leaf, $assignment.Extent.StartLineNumber, $target.VariablePath.UserPath,
+            $parameters[$name].Name, $parameters[$name].Type
+    }
+
+    # A [ref] to one of them is the same mistake wearing a hat: TryParse writes
+    # straight through it.
+    foreach ($expression in $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.ConvertExpressionAst] }, $true)) {
+        if ($expression.Type.TypeName.Name -ne 'ref') { continue }
+        $child = $expression.Child
+        if ($child -isnot [System.Management.Automation.Language.VariableExpressionAst]) { continue }
+
+        $name = $child.VariablePath.UserPath.ToLower()
+        if (-not $parameters.ContainsKey($name)) { continue }
+        if ($allowed -contains $name) { continue }
+
+        $clashes += '{0}:{1} [ref]${2} writes into the -{3} parameter' -f
+            $leaf, $expression.Extent.StartLineNumber, $child.VariablePath.UserPath,
+            $parameters[$name].Name
+    }
+
+    if ($clashes.Count -gt 0) {
+        $failures += $clashes.Count
+        foreach ($clash in $clashes) { "FAIL  $clash" }
+    } else {
+        'PASS  {0,-48} {1} parameter(s) left alone' -f $leaf, $parameters.Count
+    }
 }
 
 ''

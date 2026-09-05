@@ -447,7 +447,7 @@ one idea of sharing, so a new page cannot invent a second one.
 ## One version, two agents
 
 The Linux and Windows agents carry the same version number and are released
-together, so "this machine is on 1.4.0" means the same thing whichever one it
+together, so "this machine is on 1.5.0" means the same thing whichever one it
 is running. A fix to one is a release of both, even when the other needed
 nothing — otherwise the numbers drift and stop meaning anything, and this
 server ends up offering a version to a platform that never got it. Both check
@@ -472,6 +472,28 @@ installer acts on it:
 Only `2` makes the installer enrol again. Treating any non-zero exit as a dead
 token spends a use of an enrolment key and leaves a second row for the same
 computer, which is the one thing running the installer twice must never do.
+
+## The one PowerShell trap that keeps happening
+
+PowerShell variable names are case-insensitive, so `$poll` inside a script **is**
+the `-Poll` parameter declared at the top of it. Assigning to one is either a
+hard throw — an `Int32` into a `[switch]` — or, worse, a silent overwrite of
+what somebody typed on the command line.
+
+It has shipped twice. `$allowUpdates` quietly overrode `-AllowUpdates` in the
+installer, so a machine could be reinstalled without the permission it had been
+given. And `$poll = 0` threw on every `-Loop` run of the agent — which is the
+only way the scheduled task ever starts it — so the live channel had never once
+worked on Windows, while the installer's own `-Once` check went on succeeding
+and hid it for four versions.
+
+`tools/check-agent.ps1` now walks both param blocks and every assignment in both
+files and refuses to pass if one shadows the other. The installer deliberately
+reassigns four of its own parameters, resolving "asked for, then already here,
+then the default"; those four are named in the check so the rule can be absolute
+everywhere else.
+
+---
 
 ## Testing the Windows agent
 
