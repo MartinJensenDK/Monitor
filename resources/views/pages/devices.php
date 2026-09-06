@@ -178,6 +178,7 @@ $viewLink = static function (string $wanted) use ($base, $filters): string {
                     <span class="eyebrow"><?= e(t('device.machine')) ?></span>
                     <span class="eyebrow"><?= e(t('device.status')) ?></span>
                     <span class="eyebrow"><?= e(t('device.operating_system')) ?></span>
+                    <span class="eyebrow"><?= e(t('device.agent')) ?></span>
                     <span class="eyebrow" style="text-align:right;"><?= e(t('device.cpu')) ?></span>
                     <span class="eyebrow" style="text-align:right;"><?= e(t('device.memory')) ?></span>
                     <span class="eyebrow" style="text-align:right;"><?= e(t('device.storage')) ?></span>

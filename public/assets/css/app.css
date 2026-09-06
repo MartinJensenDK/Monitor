@@ -853,6 +853,7 @@ a:hover { text-decoration: underline; }
         minmax(180px, 1.6fr)   /* name and address */
         92px                   /* status */
         minmax(120px, 1fr)     /* operating system */
+        minmax(56px, auto)     /* agent */
         repeat(3, minmax(62px, auto))  /* cpu, memory, storage: wide enough for the heading */
         minmax(96px, 0.8fr)    /* what is waiting */
         88px                   /* last seen */
@@ -891,6 +892,13 @@ a:hover { text-decoration: underline; }
 }
 
 .devrow__os { font-size: 12px; color: var(--ink-2); min-width: 0; }
+
+.devrow__agent { font-size: 12px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+
+/* Behind what this server holds. Said in colour rather than words, because a
+   column is read down the page and a word in every row would be noise; the
+   title says which version is waiting. */
+.devrow__agent--behind { color: var(--warn); }
 
 /* The number sits above its own bar rather than beside it: three of these in
    a row, and a bar to the side would leave nothing to compare vertically. */
@@ -1680,7 +1688,7 @@ a:hover { text-decoration: underline; }
 
     /* The operating system is the first thing to go: it is the column least
        likely to be what somebody came to compare. */
-    .devrow { grid-template-columns: minmax(150px, 1.6fr) 88px repeat(3, minmax(58px, auto)) minmax(80px, 0.7fr) 80px 36px; }
+    .devrow { grid-template-columns: minmax(150px, 1.6fr) 88px minmax(52px, auto) repeat(3, minmax(58px, auto)) minmax(80px, 0.7fr) 80px 36px; }
     .devrow__os { display: none; }
 }
 
@@ -1746,6 +1754,7 @@ a:hover { text-decoration: underline; }
 
     .devrow__id { flex: 1 1 60%; }
     .devrow__status { margin-left: auto; }
+    .devrow__agent { flex: 0 0 auto; }
     .devrow__meter { flex: 1 1 72px; flex-direction: row; align-items: center; gap: 8px; text-align: left; }
     .devrow__track { flex: 1 1 auto; }
     .devrow__tags { flex: 1 1 auto; }

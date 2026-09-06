@@ -10,6 +10,7 @@
  * @var array<string,mixed> $device
  */
 
+use App\Agent\Scripts;
 use App\Support\Icons;
 
 $status = (string) $device['status'];
@@ -27,6 +28,15 @@ $cpuPercent = $device['cpu_percent'] === null ? null : (int) round((float) $devi
 $security = (int) $device['updates_security'];
 $pending = (int) $device['updates_total'];
 $osLabel = trim((string) ($device['os_name'] ?? '') . ' ' . (string) ($device['os_version'] ?? '')) ?: t('device.os_unknown');
+
+// The version, and whether it is the one on offer. Scripts::version reads the
+// script once per platform and remembers, so asking per row costs nothing.
+// Compared as versions, the same way the machine's own page compares them: a
+// machine ahead of this server is not behind.
+$agentRunning = (string) ($device['agent_version'] ?? '');
+$agentOffered = Scripts::version((string) ($device['os_family'] ?? ''));
+$agentKnown = $agentRunning !== '' && $agentOffered !== '0.0.0';
+$agentBehind = $agentKnown && version_compare($agentRunning, $agentOffered) < 0;
 ?>
 <div class="devrow" data-device-id="<?= e($uuid) ?>">
     <div class="devrow__id">
@@ -41,8 +51,13 @@ $osLabel = trim((string) ($device['os_name'] ?? '') . ' ' . (string) ($device['o
         <span class="pill pill--<?= e($status) ?>"><?= e(t('device.status_' . $status)) ?></span>
     </div>
 
-    <div class="devrow__os truncate" title="<?= e(trim((string) ($device['os_name'] ?? '') . ' ' . (string) ($device['os_version'] ?? ''))) ?>">
-        <?= e(trim((string) ($device['os_name'] ?? '') . ' ' . (string) ($device['os_version'] ?? '')) ?: t('device.os_unknown')) ?>
+    <div class="devrow__os truncate" title="<?= e($osLabel) ?>"><?= e($osLabel) ?></div>
+
+    <div class="devrow__agent num<?= $agentBehind ? ' devrow__agent--behind' : '' ?>"
+         title="<?= e($agentBehind
+             ? t('device.agent_update_ready', ['version' => $agentOffered])
+             : ($agentKnown ? t('device.agent_current') : t('device.never_reported'))) ?>">
+        <?= e($agentRunning !== '' ? $agentRunning : '—') ?>
     </div>
 
     <?php foreach ([
