@@ -144,11 +144,21 @@ final class DevicesController extends Controller
                     'uuid' => (string) $device['uuid'],
                 ])
                 : null,
-            // Which agent it is running and whether that is the one on offer.
-            // It changes without anybody touching the page -- a machine
-            // replaces its own agent and says so a minute later -- which is
-            // exactly what a reload should not be needed for.
-            'agent' => View::partial('partials/device-agent', ['device' => $fresh]),
+            // The panels that describe the machine rather than react to a
+            // click. Every one of them is out of date the moment a report
+            // lands, and a report lands while somebody is looking at the page.
+            //
+            // Rendered through the same templates the page used, so what
+            // arrives an hour in cannot be shaped differently from what was
+            // painted at the start. The readings cost a 24-hour query, which
+            // measures at under half a millisecond -- the same as fetching the
+            // machine's own row.
+            'status' => View::partial('partials/device-status', ['device' => $fresh]),
+            'gauges' => View::partial('partials/device-gauges', [
+                'device' => $fresh,
+                'metrics' => Devices::metrics($id, 24),
+            ]),
+            'facts' => View::partial('partials/device-facts', ['device' => $fresh]),
             // The standing facts about it, sent as their parts rather than
             // rendered whole, because the page has to decide whether to show
             // each one at all: dismissed against a value, and news again when

@@ -21,51 +21,10 @@
 
 use App\Core\View;
 use App\Domain\Devices;
-use App\Support\Pie;
-use App\Support\Sparkline;
 
 $status = (string) $device['status'];
 $uuid = (string) $device['uuid'];
 $isServer = Devices::normaliseKind((string) $device['kind']) === Devices::KIND_SERVER;
-
-$cpuSeries = [];
-$memorySeries = [];
-$diskSeries = [];
-foreach ($metrics as $row) {
-    $cpuSeries[] = $row['cpu_percent'] === null ? null : (float) $row['cpu_percent'];
-    $memorySeries[] = percent_of(
-        $row['memory_used_bytes'] === null ? null : (int) $row['memory_used_bytes'],
-        $row['memory_total_bytes'] === null ? null : (int) $row['memory_total_bytes']
-    );
-    $diskSeries[] = percent_of(
-        $row['disk_used_bytes'] === null ? null : (int) $row['disk_used_bytes'],
-        $row['disk_total_bytes'] === null ? null : (int) $row['disk_total_bytes']
-    );
-}
-
-$memoryPercent = percent_of(
-    $device['memory_used_bytes'] === null ? null : (int) $device['memory_used_bytes'],
-    $device['memory_bytes'] === null ? null : (int) $device['memory_bytes']
-);
-$diskPercent = percent_of(
-    $device['disk_used_bytes'] === null ? null : (int) $device['disk_used_bytes'],
-    $device['disk_total_bytes'] === null ? null : (int) $device['disk_total_bytes']
-);
-$cpuPercent = $device['cpu_percent'] === null ? null : (int) round((float) $device['cpu_percent']);
-
-$facts = array_filter([
-    t('device.operating_system') => trim((string) ($device['os_name'] ?? '') . ' ' . (string) ($device['os_version'] ?? '')),
-    t('device.kernel') => (string) ($device['kernel'] ?? ''),
-    t('device.architecture') => (string) ($device['arch'] ?? ''),
-    t('device.processor') => trim((string) ($device['cpu_model'] ?? '') . ((int) ($device['cpu_cores'] ?? 0) > 0 ? ' · ' . $device['cpu_cores'] . ' cores' : '')),
-    t('device.memory') => format_bytes($device['memory_bytes'] === null ? null : (int) $device['memory_bytes']),
-    t('device.hardware') => trim((string) ($device['manufacturer'] ?? '') . ' ' . (string) ($device['model'] ?? '')),
-    t('device.serial') => (string) ($device['serial_number'] ?? ''),
-    t('device.virtualisation') => (string) ($device['virtualisation'] ?? ''),
-    t('device.hostname') => (string) $device['hostname'],
-    t('device.address') => (string) ($device['primary_ip'] ?? ''),
-    t('device.seen_from') => (string) ($device['report_ip'] ?? ''),
-], static fn ($value): bool => trim((string) $value) !== '' && $value !== '—');
 ?>
 <div class="devpage">
 
@@ -129,15 +88,7 @@ $facts = array_filter([
                         <?php endif; ?>
                     </p>
                     <h2><?= e((string) $device['name']) ?></h2>
-                    <p class="muted mt-0">
-                        <span class="pill pill--<?= e($status) ?>" data-device-status><?= e(t('device.status_' . $status)) ?></span>
-                        <?= e($device['last_seen_at'] === null
-                            ? t('device.never_reported')
-                            : t('device.last_report', ['time' => format_since((string) $device['last_seen_at'])])) ?>
-                        · <?= e(t('device.every', ['interval' => format_duration((int) $device['interval_seconds'])])) ?>
-                        <?php if ((int) $device['poll_seconds'] > 0): ?>
-                            · <?= e(t('device.live_every', ['poll' => format_duration((int) $device['poll_seconds'])])) ?>
-                        <?php endif; ?>
+                    <p class="muted mt-0" data-status-line><?= View::partial('partials/device-status', ['device' => $device]) ?>
                     </p>
                 </div>
             </div>
@@ -151,39 +102,8 @@ $facts = array_filter([
         </div>
 
         <div class="panel__body">
-            <div class="grid grid--gauges">
-                <?php
-                // Processor and memory are rates: what matters is which way
-                // they have been going, so they get the last day as a line.
-                //
-                // A disk is not a rate. It is a quantity with some of it gone,
-                // and the question is how much room is left -- which a pie
-                // answers at a glance and a line of a barely-moving number
-                // does not.
-                foreach ([
-                    ['label' => t('device.cpu'), 'percent' => $cpuPercent, 'shape' => 'line', 'series' => $cpuSeries, 'foot' => (string) ($device['load1'] ?? '') !== '' ? t('device.load', ['value' => $device['load1']]) : ''],
-                    ['label' => t('device.memory'), 'percent' => $memoryPercent, 'shape' => 'line', 'series' => $memorySeries, 'foot' => format_bytes($device['memory_used_bytes'] === null ? null : (int) $device['memory_used_bytes']) . ' / ' . format_bytes($device['memory_bytes'] === null ? null : (int) $device['memory_bytes'])],
-                    ['label' => t('device.storage'), 'percent' => $diskPercent, 'shape' => 'pie', 'series' => $diskSeries, 'foot' => format_bytes($device['disk_used_bytes'] === null ? null : (int) $device['disk_used_bytes']) . ' / ' . format_bytes($device['disk_total_bytes'] === null ? null : (int) $device['disk_total_bytes'])],
-                ] as $gauge): ?>
-                    <div class="gauge gauge--<?= e(meter_level($gauge['percent'])) ?>">
-                        <p class="eyebrow"><?= e($gauge['label']) ?></p>
-                        <p class="gauge__value num"><?= $gauge['percent'] === null ? '—' : (int) $gauge['percent'] . '<span class="gauge__unit">%</span>' ?></p>
-                        <div class="gauge__spark<?= $gauge['shape'] === 'pie' ? ' gauge__spark--pie' : '' ?>">
-                            <?= $gauge['shape'] === 'pie'
-                                ? Pie::svg($gauge['percent'] === null ? null : (float) $gauge['percent'])
-                                : Sparkline::svg($gauge['series']) ?>
-                        </div>
-                        <p class="gauge__foot"><?= e($gauge['foot']) ?></p>
-                    </div>
-                <?php endforeach; ?>
-
-                <div class="gauge">
-                    <p class="eyebrow"><?= e(t('device.uptime')) ?></p>
-                    <p class="gauge__value num"><?= e(format_duration($device['uptime_seconds'] === null ? null : (int) $device['uptime_seconds'])) ?></p>
-                    <p class="gauge__foot">
-                        <?= $device['boot_at'] === null ? '' : e(t('device.booted', ['time' => local_time((string) $device['boot_at'], 'Y-m-d H:i')])) ?>
-                    </p>
-                </div>
+            <div class="grid grid--gauges" data-gauges>
+                <?= View::partial('partials/device-gauges', ['device' => $device, 'metrics' => $metrics]) ?>
             </div>
         </div>
     </section>
@@ -419,22 +339,8 @@ $facts = array_filter([
         <aside class="stack">
             <section class="panel">
                 <div class="panel__head"><h2><?= e(t('device.facts')) ?></h2></div>
-                <div class="panel__body">
-                    <dl class="facts">
-                        <?php foreach ($facts as $label => $value): ?>
-                            <dt><?= e((string) $label) ?></dt>
-                            <dd class="truncate" title="<?= e((string) $value) ?>"><?= e((string) $value) ?></dd>
-                        <?php endforeach; ?>
-                        <dt><?= e(t('device.agent')) ?></dt>
-                        <dd data-agent-fact><?= View::partial('partials/device-agent', ['device' => $device]) ?></dd>
-                        <dt><?= e(t('device.enrolled')) ?></dt>
-                        <dd><?= e(local_time((string) $device['enrolled_at'], 'Y-m-d H:i')) ?></dd>
-                        <dt><?= e(t('device.token')) ?></dt>
-                        <dd class="num"><?= e((string) $device['token_hint']) ?>…</dd>
-                    </dl>
-                    <?php if (!empty($device['notes'])): ?>
-                        <p class="muted"><?= e((string) $device['notes']) ?></p>
-                    <?php endif; ?>
+                <div class="panel__body" data-facts>
+                    <?= View::partial('partials/device-facts', ['device' => $device]) ?>
                 </div>
             </section>
 

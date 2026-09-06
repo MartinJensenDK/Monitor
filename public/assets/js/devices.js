@@ -131,16 +131,36 @@
         refresh();                     // the times in it are relative
     }
 
-    // The agent fact in the sidebar: which agent this machine runs, and whether
-    // that is the one on offer. It changes without anybody touching the page --
-    // the machine replaces its own agent and says so a minute later.
-    function updateAgentFact(html) {
-        if (typeof html !== 'string') return;
+    // The parts of the page that describe the machine rather than react to a
+    // click: the status line, the four readings, what it says it is. Each is
+    // out of date the moment a report lands, and a report lands while somebody
+    // is looking at the page.
+    //
+    // Written only when the html has actually changed. Most answers change
+    // nothing, and replacing a panel that is already right would restart its
+    // transitions and take the selection out of whatever somebody was reading.
+    var panels = [
+        ['[data-status-line]', 'status'],
+        ['[data-gauges]', 'gauges'],
+        ['[data-facts]', 'facts']
+    ];
 
-        var cell = document.querySelector('[data-agent-fact]');
-        if (!cell || cell.innerHTML === html) return;
+    function updatePanels(data) {
+        var moved = false;
 
-        cell.innerHTML = html;
+        panels.forEach(function (pair) {
+            var html = data[pair[1]];
+            if (typeof html !== 'string') return;
+
+            var target = document.querySelector(pair[0]);
+            if (!target || target.innerHTML === html) return;
+
+            target.innerHTML = html;
+            moved = true;
+        });
+
+        // "4m ago" is in two of them, and it is relative.
+        if (moved) refresh();
     }
 
     function startLog(panel) {
@@ -217,7 +237,7 @@
                 busy = !!data.busy;
                 if (live) live.hidden = !busy;
                 updateCommands(uuid, data.commands);
-                updateAgentFact(data.agent);
+                updatePanels(data);
 
                 // The standing notices, kept honest by the same answer:
                 // install the updates and that one goes, restart and the other
