@@ -288,6 +288,8 @@ return [
     'device.publisher' => 'Udgiver',
 
     'device.commands' => 'Bed den om noget',
+    'device.commands_recent' => 'Hvad den er blevet bedt om',
+    'device.commands_none_yet' => 'Der er endnu ikke bedt maskinen om noget.',
     'device.commands_hint' => 'Sættes i kø nu og udføres ved næste indtjek. Maskinen afviser alt, den ikke er installeret til at tillade.',
     'device.command_refused' => 'Installeret uden :flag, så maskinen vil afvise det.',
     'device.command_refused_pinned' => 'Installeret med :flag, så maskinen udskifter ikke sin egen agent.',

@@ -54,6 +54,10 @@
 
     --rail-width: 236px;
     --page-max: 1440px;
+    /* The height of the application's bar, and so the offset anything
+       else sticks at. .topbar carries it as a min-height, so the number
+       and the bar cannot disagree. */
+    --topbar-h: 66px;
 }
 
 /* Dark mode arrives two ways: an explicit choice stamped on <html> by the
@@ -411,6 +415,8 @@ a:hover { text-decoration: underline; }
     position: sticky;
     top: 0;
     z-index: 20;
+    /* Also the offset anything else sticks at; see --topbar-h. */
+    min-height: var(--topbar-h);
     display: flex;
     align-items: center;
     gap: 14px;
@@ -1607,6 +1613,11 @@ a:hover { text-decoration: underline; }
 @media (max-width: 860px) {
     .shell { grid-template-columns: minmax(0, 1fr); }
 
+    /* Nothing is frozen at this width: the screen is short, the application's
+       own bar is already taking a slice of it, and a second frozen strip
+       would leave the page reading through a letterbox. */
+    .devbar { position: static; }
+
     .rail {
         position: static;
         height: auto;
@@ -2433,6 +2444,41 @@ code {
 
 .cmdrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .cmdrow__hint { font-size: 11px; color: var(--ink-muted); flex: 1 1 160px; }
+
+/* ── What can be asked of one machine ───────────────────────────────────
+   A toolbar for the page, under the application's own bar and staying there
+   while the page moves. Sticking one thing below another means knowing how
+   tall the other is, which is what --topbar-h is for: the same value is the
+   bar's own min-height, so a change to one is a change to both.            */
+
+.devbar {
+    position: sticky;
+    top: var(--topbar-h);
+    z-index: 15;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+    backdrop-filter: blur(8px);
+}
+
+.devbar form { display: contents; }
+
+.devbar__note {
+    margin: 0 0 0 auto;
+    font-size: 11px;
+    color: var(--ink-muted);
+    text-align: right;
+    max-width: 42ch;
+}
+
+/* A disabled button does not always raise a tooltip of its own, so the reason
+   hangs on something that is not disabled. */
+.devbar__slot { display: inline-flex; }
 
 .timeline { list-style: none; margin: 0; padding: 0 0 0 14px; position: relative; }
 

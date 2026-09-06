@@ -301,6 +301,8 @@ return [
     'device.publisher' => 'Publisher',
 
     'device.commands' => 'Ask it to do something',
+    'device.commands_recent' => 'What it has been asked',
+    'device.commands_none_yet' => 'Nothing has been asked of this machine yet.',
     'device.commands_hint' => 'Queued now, carried out at the next check-in. The machine refuses anything it was not installed to allow.',
     'device.command_refused' => 'Installed without :flag, so this machine will refuse.',
     'device.command_refused_pinned' => 'Installed with :flag, so this machine will not replace its own agent.',

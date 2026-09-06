@@ -67,6 +67,54 @@ $facts = array_filter([
 ?>
 <div class="devpage">
 
+    <?php if ($canEdit): ?>
+        <?php
+        // What can be asked of this machine, as the page's own toolbar: it is
+        // the only thing here that does something rather than says something,
+        // and it stays put while the rest scrolls under it.
+        //
+        // The hint that was beside each button is now the button's own title,
+        // hung on a wrapper because a disabled button does not reliably raise
+        // one of its own -- and the buttons that are going to be refused are
+        // exactly the ones that are disabled.
+        $withheld = App\Domain\DeviceCommands::withheld($device);
+        ?>
+        <div class="devbar">
+            <?php if ((int) $device['commands_enabled'] !== 1): ?>
+                <p class="devbar__note" style="margin-left:0;"><?= e(t('device.commands_off')) ?></p>
+            <?php else: ?>
+                <?php foreach ($catalogue as $name => $meta): ?>
+                    <?php if ($meta['changes'] && !can('devices.command_changes')) { continue; } ?>
+                    <?php
+                    $blocked = $withheld[$name] ?? null;
+                    $why = $blocked === null
+                        ? (string) $meta['hint']
+                        : ($name === 'update_agent'
+                            ? t('device.command_refused_pinned', ['flag' => $blocked])
+                            : t('device.command_refused', ['flag' => $blocked]));
+                    ?>
+                    <span class="devbar__slot" title="<?= e($why) ?>">
+                        <form method="post" action="/devices/<?= e($uuid) ?>/commands"
+                              <?= $meta['changes'] && $blocked === null ? 'data-confirm="' . e(t('device.confirm_command', ['command' => $meta['label']])) . '"' : '' ?>>
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="command" value="<?= e((string) $name) ?>">
+                            <button class="btn btn--sm <?= $meta['changes'] ? 'btn--danger' : '' ?>" type="submit"
+                                    <?= $blocked === null ? '' : 'disabled' ?>>
+                                <?= icon((string) $meta['icon']) ?><?= e((string) $meta['label']) ?>
+                            </button>
+                        </form>
+                    </span>
+                <?php endforeach; ?>
+
+                <p class="devbar__note">
+                    <?= e((int) $device['poll_seconds'] > 0
+                        ? t('device.commands_hint_live', ['poll' => format_duration((int) $device['poll_seconds'])])
+                        : t('device.commands_hint')) ?>
+                </p>
+            <?php endif; ?>
+        </div>
+    <?php endif; ?>
+
     <section class="panel">
         <div class="panel__head">
             <div class="devhead">
@@ -145,6 +193,32 @@ $facts = array_filter([
 
     <div class="cols cols--sidebar" style="margin-top:18px;">
         <div class="stack">
+
+            <?php
+            // What the agent says about itself, as it says it. The cursor is
+            // the last row id rather than a time, because the agent's clock is
+            // not to be trusted for ordering and two lines can share a second.
+            $logCursor = $logs === [] ? 0 : (int) $logs[count($logs) - 1]['id'];
+            ?>
+            <section class="panel panel--log" data-log="<?= e($uuid) ?>"
+                     data-log-since="<?= $logCursor ?>" data-log-busy="<?= $logBusy ? '1' : '0' ?>">
+                <div class="panel__head">
+                    <h2><?= icon('terminal') ?><?= e(t('device.log')) ?></h2>
+                    <span class="pill pill--pending log__live" hidden><?= e(t('device.log_live')) ?></span>
+                </div>
+                <div class="panel__body">
+                    <p class="field__hint mt-0"><?= e(t('device.log_hint')) ?></p>
+                    <ol class="log" data-log-lines>
+                        <?php foreach ($logs as $line): ?>
+                            <li class="log__line log__line--<?= e((string) $line['level']) ?>">
+                                <span class="log__at"><?= e(local_time((string) $line['received_at'], 'H:i:s')) ?></span>
+                                <span class="log__text"><?= e((string) $line['message']) ?></span>
+                            </li>
+                        <?php endforeach; ?>
+                    </ol>
+                    <p class="muted log__empty"<?= $logs === [] ? '' : ' hidden' ?>><?= e(t('device.log_empty')) ?></p>
+                </div>
+            </section>
 
             <?php if ($disks !== []): ?>
                 <section class="panel">
@@ -391,48 +465,11 @@ $facts = array_filter([
 
             <?php if ($canEdit): ?>
                 <section class="panel">
-                    <div class="panel__head"><h2><?= icon('terminal') ?><?= e(t('device.commands')) ?></h2></div>
+                    <div class="panel__head"><h2><?= icon('history') ?><?= e(t('device.commands_recent')) ?></h2></div>
                     <div class="panel__body">
-                        <?php if ((int) $device['commands_enabled'] !== 1): ?>
-                            <p class="muted mt-0"><?= e(t('device.commands_off')) ?></p>
+                        <?php if ($commands === []): ?>
+                            <p class="muted mt-0"><?= e(t('device.commands_none_yet')) ?></p>
                         <?php else: ?>
-                            <p class="field__hint" style="margin-bottom:12px;">
-                                <?= e((int) $device['poll_seconds'] > 0
-                                    ? t('device.commands_hint_live', ['poll' => format_duration((int) $device['poll_seconds'])])
-                                    : t('device.commands_hint')) ?>
-                            </p>
-                            <?php
-                            // What this machine has already said it will not
-                            // do. Pressing one of these only ever produced a
-                            // refusal, so the button says so instead of
-                            // waiting to be pressed.
-                            $withheld = App\Domain\DeviceCommands::withheld($device);
-                            ?>
-                            <div class="stack stack--tight">
-                                <?php foreach ($catalogue as $name => $meta): ?>
-                                    <?php if ($meta['changes'] && !can('devices.command_changes')) { continue; } ?>
-                                    <?php $blocked = $withheld[$name] ?? null; ?>
-                                    <form method="post" action="/devices/<?= e($uuid) ?>/commands" class="cmdrow"
-                                          <?= $meta['changes'] && $blocked === null ? 'data-confirm="' . e(t('device.confirm_command', ['command' => $meta['label']])) . '"' : '' ?>>
-                                        <?= csrf_field() ?>
-                                        <input type="hidden" name="command" value="<?= e((string) $name) ?>">
-                                        <button class="btn btn--sm <?= $meta['changes'] ? 'btn--danger' : '' ?>" type="submit"
-                                                <?= $blocked === null ? '' : 'disabled' ?>>
-                                            <?= icon((string) $meta['icon']) ?><?= e((string) $meta['label']) ?>
-                                        </button>
-                                        <span class="cmdrow__hint">
-                                            <?= $blocked === null
-                                                ? e((string) $meta['hint'])
-                                                : e($name === 'update_agent'
-                                                    ? t('device.command_refused_pinned', ['flag' => $blocked])
-                                                    : t('device.command_refused', ['flag' => $blocked])) ?>
-                                        </span>
-                                    </form>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-
-                        <?php if ($commands !== []): ?>
                             <div class="table-wrap" style="margin-top:16px;">
                                 <table class="table table--compact">
                                     <tbody>
@@ -466,32 +503,6 @@ $facts = array_filter([
                     </div>
                 </section>
             <?php endif; ?>
-
-            <?php
-            // What the agent says about itself, as it says it. The cursor is
-            // the last row id rather than a time, because the agent's clock is
-            // not to be trusted for ordering and two lines can share a second.
-            $logCursor = $logs === [] ? 0 : (int) $logs[count($logs) - 1]['id'];
-            ?>
-            <section class="panel panel--log" data-log="<?= e($uuid) ?>"
-                     data-log-since="<?= $logCursor ?>" data-log-busy="<?= $logBusy ? '1' : '0' ?>">
-                <div class="panel__head">
-                    <h2><?= icon('terminal') ?><?= e(t('device.log')) ?></h2>
-                    <span class="pill pill--pending log__live" hidden><?= e(t('device.log_live')) ?></span>
-                </div>
-                <div class="panel__body">
-                    <p class="field__hint mt-0"><?= e(t('device.log_hint')) ?></p>
-                    <ol class="log" data-log-lines>
-                        <?php foreach ($logs as $line): ?>
-                            <li class="log__line log__line--<?= e((string) $line['level']) ?>">
-                                <span class="log__at"><?= e(local_time((string) $line['received_at'], 'H:i:s')) ?></span>
-                                <span class="log__text"><?= e((string) $line['message']) ?></span>
-                            </li>
-                        <?php endforeach; ?>
-                    </ol>
-                    <p class="muted log__empty"<?= $logs === [] ? '' : ' hidden' ?>><?= e(t('device.log_empty')) ?></p>
-                </div>
-            </section>
 
             <section class="panel">
                 <div class="panel__head"><h2><?= icon('history') ?><?= e(t('device.timeline')) ?></h2></div>
