@@ -2464,6 +2464,10 @@ code {
     border-radius: var(--radius);
     background: color-mix(in srgb, var(--panel) 92%, transparent);
     backdrop-filter: blur(8px);
+    /* The page's own rhythm, which the toolbar had none of: it sat flush on
+       the panel below it and read as the top of that panel rather than as a
+       thing of its own. */
+    margin-bottom: 18px;
 }
 
 .devbar form { display: contents; }
