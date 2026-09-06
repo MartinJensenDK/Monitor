@@ -30,10 +30,10 @@ export LC_ALL
 
 # One POSIX agent for Linux and macOS, and a PowerShell one for Windows.
 # They carry one version between them and move together, so that
-# "this machine is on 1.8.0" means the same thing whichever it is running. A
+# "this machine is on 1.9.0" means the same thing whichever it is running. A
 # change to one is a release of both, even when the other needed nothing:
 # tools/check-agent.sh and check-agent.ps1 both refuse to pass if they differ.
-AGENT_VERSION="1.8.0"
+AGENT_VERSION="1.9.0"
 CONF="${MONITOR_CONF:-/etc/monitor-agent/agent.conf}"
 
 MONITOR_URL=""
@@ -826,6 +826,25 @@ summarise_updates() {
     else
         echo "Lists refreshed. $total update(s) waiting, $security of them security."
     fi
+}
+
+# When this machine last started, as a number that changes only when it does.
+#
+# Not the uptime: an uptime is a different number every second, and what is
+# wanted here is an identity for the current boot that can be compared with the
+# one from the last run.
+boot_epoch() {
+    if [ "$PLATFORM" = "macos" ]; then
+        sysctl -n kern.boottime 2>/dev/null \
+            | awk '{ for (i = 1; i <= NF; i++) if ($i == "sec") { v = $(i + 2); gsub(/[^0-9]/, "", v); print v; exit } }'
+        return
+    fi
+
+    # btime is the boot as a wall-clock second and does not move while the
+    # machine is up. Where it is missing, the uptime subtracted from now is
+    # close enough to differ across a restart and not within one.
+    awk '/^btime/ { print $2; exit }' /proc/stat 2>/dev/null && return
+    awk -v now="$(date +%s)" '{ printf "%d", now - $1; exit }' /proc/uptime 2>/dev/null
 }
 
 updates_json() {
@@ -1676,6 +1695,39 @@ CONFEOF
     mv "$tmp" "$CONF"
 }
 
+# Whether a full report is owed regardless of the schedule.
+#
+# Two things make everything this agent knows worth saying again straight away
+# rather than at the next interval: the machine has restarted, so the uptime,
+# the kernel and whatever was pending across the reboot are all stale; and the
+# agent has been replaced, so what it can see may have changed and the version
+# on its own page is wrong until it says otherwise.
+#
+# Both come out of one comparison. The stamp is written after a report gets
+# through, not before, so a machine that cannot reach the server keeps owing
+# the report rather than losing it.
+RUN_STAMP=""
+[ -n "$MONITOR_STATE" ] && RUN_STAMP="$MONITOR_STATE/last-run"
+
+report_owed() {
+    [ -n "$RUN_STAMP" ] || return 1
+
+    want="$(boot_epoch) $AGENT_VERSION"
+    last="$(cat "$RUN_STAMP" 2>/dev/null || true)"
+    [ "$last" = "$want" ] && return 1
+
+    case "$last" in
+        '') echo "this agent has not reported from here before" ;;
+        "${want% *} "*) echo "the agent is now $AGENT_VERSION" ;;
+        *) echo "this machine has restarted" ;;
+    esac
+}
+
+mark_reported() {
+    [ -n "$RUN_STAMP" ] || return 0
+    printf '%s %s\n' "$(boot_epoch)" "$AGENT_VERSION" > "$RUN_STAMP" 2>/dev/null || true
+}
+
 # ------------------------------------------------------------------- main ---
 
 # Exit codes are how the installer tells "this machine is not who it says it
@@ -1695,6 +1747,7 @@ run_once() {
     case "$code" in
         200)
             log debug "Reported."
+            mark_reported
             handle_response || return 0
             ;;
         400)
@@ -1779,6 +1832,16 @@ loop() {
     if [ "${MONITOR_POLL:-0}" -le 0 ] 2>/dev/null; then
         run_once ""
         return $?
+    fi
+
+    # Before any of the knocking: if this is the first run since the machine
+    # started or since the agent changed, say everything now. On the live
+    # channel the alternative is a machine that has just come back describing
+    # itself as it was before it went.
+    owed="$(report_owed || true)"
+    if [ -n "$owed" ]; then
+        log info "Reporting in full: $owed."
+        run_once "" || true
     fi
 
     deadline=$(( $(date +%s) + LOOP_SECONDS ))

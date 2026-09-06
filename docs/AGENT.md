@@ -381,6 +381,32 @@ proves nothing against them. What protects it is the address pinned in its
 config, TLS on the way, and that veto, which is set on the machine and cannot be
 granted from here.
 
+### After a restart, and after an update
+
+A report is normally sent on the interval, and a poll in between carries no
+facts about the machine at all. That leaves two moments where the interval is
+the wrong answer.
+
+A machine that has just restarted describes itself as it was before it went:
+the uptime, the pending-restart flag, the kernel it is now running and anything
+an update changed on the way down are all stale until the interval comes round
+-- up to five minutes of a page saying something that is no longer true, at
+exactly the moment somebody is most likely to be looking at it.
+
+And an agent that has just replaced itself may be able to see things the old
+one could not, and its own version on its page is wrong until it says
+otherwise.
+
+So the first run after either one reports in full before it does anything else.
+Both come out of one comparison: the agent keeps the boot it last reported from
+and the version it was, and a run whose pair does not match owes a report. The
+stamp is written only once a report has actually got through, so a machine that
+cannot reach the server keeps owing it rather than losing it.
+
+What "in full" means is what that machine collects -- `MONITOR_COLLECT`. An
+agent installed with `--collect disks` sends disks, promptly. Somebody chose
+that, and a restart is not a reason to overrule them.
+
 ---
 
 ## When a machine goes quiet
@@ -502,7 +528,7 @@ and this agent is root.
 ## One version, three platforms
 
 The Linux and Windows agents carry the same version number and are released
-together, so "this machine is on 1.8.0" means the same thing whichever one it
+together, so "this machine is on 1.9.0" means the same thing whichever one it
 is running. A fix to one is a release of both, even when the other needed
 nothing — otherwise the numbers drift and stop meaning anything, and this
 server ends up offering a version to a platform that never got it. Both check

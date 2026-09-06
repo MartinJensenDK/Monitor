@@ -40,10 +40,10 @@ $ErrorActionPreference = 'Stop'
 
 # One POSIX agent for Linux and macOS, and this one for Windows. They carry
 # one version between them and move together, so that
-# "this machine is on 1.8.0" means the same thing whichever it is running.
+# "this machine is on 1.9.0" means the same thing whichever it is running.
 # A change to one is a release of both, even when the other needed nothing:
 # tools/check-agent.sh and check-agent.ps1 both refuse to pass if they differ.
-$AgentVersion = '1.8.0'
+$AgentVersion = '1.9.0'
 
 # What the last failure was. These are how the installer tells "this machine is
 # not who it says it is" from "that did not get through" -- they are not the
@@ -859,6 +859,54 @@ function Get-UpdateRetrySeconds {
     return $seconds
 }
 
+# When this machine last started, as a number that changes only when it does.
+#
+# Not the uptime: an uptime is a different number every second, and what is
+# wanted is an identity for the current boot that can be compared with the one
+# from the last run. Rounded to the second, because LastBootUpTime is reported
+# with more precision than it is measured with and can wobble underneath.
+function Get-BootEpoch {
+    try {
+        $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
+        if ($os -and $os.LastBootUpTime) {
+            return [long][math]::Floor(($os.LastBootUpTime.ToUniversalTime() - [datetime]'1970-01-01').TotalSeconds)
+        }
+    } catch { }
+
+    return 0
+}
+
+# Whether a full report is owed regardless of the schedule.
+#
+# Two things make everything this agent knows worth saying again straight away
+# rather than at the next interval: the machine has restarted, so the uptime,
+# the pending-restart flag and whatever changed across the reboot are all
+# stale; and the agent has been replaced, so what it can see may have changed
+# and the version on its own page is wrong until it says otherwise.
+#
+# The stamp is written after a report gets through, not before, so a machine
+# that cannot reach the server keeps owing the report rather than losing it.
+function Get-RunStamp { return (Join-Path $StatePath 'last-run') }
+
+function Get-ReportOwed {
+    $want = '{0} {1}' -f (Get-BootEpoch), $AgentVersion
+    $last = ''
+    try { $last = (Get-Content -LiteralPath (Get-RunStamp) -Raw -ErrorAction Stop).Trim() } catch { }
+
+    if ($last -eq $want) { return '' }
+    if (-not $last) { return 'this agent has not reported from here before' }
+    if ($last.StartsWith(($want -split ' ')[0] + ' ')) { return "the agent is now $AgentVersion" }
+
+    return 'this machine has restarted'
+}
+
+function Set-Reported {
+    try {
+        if (-not (Test-Path -LiteralPath $StatePath)) { New-Item -ItemType Directory -Path $StatePath -Force | Out-Null }
+        Set-Content -LiteralPath (Get-RunStamp) -Value ('{0} {1}' -f (Get-BootEpoch), $AgentVersion) -Encoding UTF8
+    } catch { }
+}
+
 # The version Monitor says this machine should be running, out of the answer it
 # just gave. Read from inside the "agent" object rather than by looking for
 # "version" anywhere in the body.
@@ -1284,6 +1332,7 @@ function Invoke-Report {
                 return $null
             }
             Write-AgentLog -Level 'debug' -Message 'Reported.'
+            Set-Reported
             Update-Cadences -Body $answer.body
             return $answer.body
         }
@@ -1415,6 +1464,16 @@ if ($Loop) {
         }
         if ($null -ne $body) { Invoke-Answer -Body $body }
         Complete-Run 0 -Update
+    }
+
+    # Before any of the knocking: if this is the first run since the machine
+    # started or since the agent changed, say everything now. On the live
+    # channel the alternative is a machine that has just come back describing
+    # itself as it was before it went.
+    $owed = Get-ReportOwed
+    if ($owed) {
+        Write-AgentLog -Level 'info' -Message "Reporting in full: $owed."
+        try { Invoke-Report | Out-Null } catch { Write-Warning $_.Exception.Message }
     }
 
     $loopSeconds = 55

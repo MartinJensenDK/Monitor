@@ -648,7 +648,7 @@ fi
 echo
 echo 'The two agents move together'
 
-# One version between them, so "this machine is on 1.8.0" means the same thing
+# One version between them, so "this machine is on 1.9.0" means the same thing
 # whichever agent it is running. A fix to one is a release of both, even when
 # the other needed nothing -- otherwise the numbers drift and stop meaning
 # anything, and Monitor offers a version to a platform that never got it.
@@ -980,6 +980,78 @@ CASEEOF
 case "$got" in
     *'without --allow-reboot'*exit=77) ok 'and a Mac refuses a restart it was not installed to allow' ;;
     *) bad 'and a Mac refuses a restart it was not installed to allow' 'the refusal and exit 77' "$got" ;;
+esac
+
+
+# ------------------------------------ 7. what is owed after a boot or update ---
+#
+# A machine that has just restarted, or has just replaced its agent, should say
+# everything it knows straight away rather than at the next interval. Both come
+# out of one comparison against a stamp, and the stamp is written only once a
+# report has got through -- so a machine that cannot reach the server keeps
+# owing the report instead of losing it.
+
+echo
+echo 'What a run owes before it starts knocking'
+
+owed_case() {
+    boot_line="$1"
+    stamp="$2"
+    agent_case <<CASEEOF
+mkdir -p "\$MONITOR_STATE"
+boot_epoch() { printf '%s' '$boot_line'; }
+$stamp
+printf '%s' "\$(report_owed)"
+CASEEOF
+}
+
+got=$(owed_case 5000 '')
+case "$got" in
+    *'has not reported from here before'*) ok 'a machine with no stamp owes one' ;;
+    *) bad 'a machine with no stamp owes one' 'the first-run reason' "$got" ;;
+esac
+
+got=$(owed_case 5000 'printf "5000 $AGENT_VERSION\n" > "$RUN_STAMP"')
+if [ -z "$got" ]; then
+    ok 'and owes nothing once the stamp matches'
+else
+    bad 'and owes nothing once the stamp matches' 'nothing' "$got"
+fi
+
+got=$(owed_case 5000 'printf "5000 0.0.1\n" > "$RUN_STAMP"')
+case "$got" in
+    *'the agent is now'*) ok 'the same boot with an older version owes one' ;;
+    *) bad 'the same boot with an older version owes one' 'the new version' "$got" ;;
+esac
+
+got=$(owed_case 5000 'printf "4000 $AGENT_VERSION\n" > "$RUN_STAMP"')
+case "$got" in
+    *'has restarted'*) ok 'and so does a boot the last report knew nothing about' ;;
+    *) bad 'and so does a boot the last report knew nothing about' 'the restart' "$got" ;;
+esac
+
+got=$(agent_case <<'CASEEOF'
+mkdir -p "$MONITOR_STATE"
+boot_epoch() { printf '%s' 7777; }
+mark_reported
+printf '%s' "$(cat "$RUN_STAMP")"
+CASEEOF
+)
+if [ "$got" = "7777 $(sed -n 's/^AGENT_VERSION="\(.*\)"$/\1/p' "$AGENT_DIR/agent.sh")" ]; then
+    ok 'and a report that landed records the boot and the version'
+else
+    bad 'and a report that landed records the boot and the version' "7777 and the version" "$got"
+fi
+
+# The Linux and macOS readings of "which boot is this" are different files
+# entirely, and neither is the uptime.
+got=$(agent_case <<'CASEEOF'
+printf '%s' "$(boot_epoch)"
+CASEEOF
+)
+case "$got" in
+    ''|*[!0-9]*) bad 'boot_epoch reads a plain number on this machine' 'digits' "$got" ;;
+    *) ok 'boot_epoch reads a plain number on this machine' ;;
 esac
 
 
