@@ -219,14 +219,12 @@
                 updateCommands(uuid, data.commands);
                 updateAgentFact(data.agent);
 
-                // The standing notice about updates waiting, kept honest by
-                // the same answer: install them and it goes; find more and it
-                // is news again even if it was sent away at the old number.
-                if (window.monitorNotice) {
-                    window.monitorNotice(data.notice || {
-                        key: 'monitor.updates.' + uuid,
-                        value: ''
-                    });
+                // The standing notices, kept honest by the same answer:
+                // install the updates and that one goes, restart and the other
+                // does, and either becoming true again is news even to
+                // somebody who sent the last one away.
+                if (window.monitorNotice && data.notices) {
+                    data.notices.forEach(window.monitorNotice);
                 }
 
                 schedule();

@@ -1335,9 +1335,38 @@ a:hover { text-decoration: underline; }
     flex-direction: column;
     align-items: center;
     gap: 8px;
-    width: min(520px, calc(100vw - 28px));
+    /* Wide enough for two standing notices beside each other; the fading ones
+       are sized by their own text and stay centred inside it. */
+    width: min(980px, calc(100vw - 28px));
     pointer-events: none;
 }
+
+/* Two groups, in the order they should be read. What is true about the machine
+   stays at the top and side by side, because those are facts to be compared;
+   what just happened queues up underneath and takes itself away. */
+.toasts__standing {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 8px;
+    width: 100%;
+}
+
+.toasts__flash {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.toasts__standing:empty,
+.toasts__flash:empty { display: none; }
+
+/* Side by side, each no wider than half the room, so two of them balance
+   rather than one taking the line and pushing the other under it. */
+.toasts__standing .toast { max-width: min(100%, 480px); }
 
 .toast {
     pointer-events: auto;
@@ -1388,6 +1417,8 @@ a:hover { text-decoration: underline; }
 
 @media (max-width: 860px) {
     .toasts { top: 8px; width: calc(100vw - 16px); }
+    /* No room for two abreast; they stack, standing ones still first. */
+    .toasts__standing { flex-direction: column; align-items: stretch; }
 }
 
 /* ── Empty states ───────────────────────────────────────────────────── */

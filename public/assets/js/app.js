@@ -51,16 +51,36 @@
 
     var TOAST_MS = 3000;
     var toasts = null;
+    var standing = null;
+    var flashes = null;
 
+    // Two groups in one place: what is true about this machine on top, side by
+    // side, and what just happened underneath. The order is the reading order
+    // -- a fact outlives the answer to a click, so it should not be pushed
+    // around by one.
     function toastArea() {
         if (toasts && document.body.contains(toasts)) return toasts;
 
         toasts = document.createElement('div');
         toasts.className = 'toasts';
         toasts.setAttribute('aria-live', 'polite');
+
+        standing = document.createElement('div');
+        standing.className = 'toasts__standing';
+        flashes = document.createElement('div');
+        flashes.className = 'toasts__flash';
+
+        toasts.appendChild(standing);
+        toasts.appendChild(flashes);
         document.body.appendChild(toasts);
 
         return toasts;
+    }
+
+    function group(sticky) {
+        toastArea();
+
+        return sticky ? standing : flashes;
     }
 
     function dismiss(toast) {
@@ -72,7 +92,7 @@
     }
 
     function show(toast, sticky) {
-        toastArea().appendChild(toast);
+        group(sticky).appendChild(toast);
         // Two frames, so the browser has painted the starting state and has
         // something to transition from.
         window.requestAnimationFrame(function () {
@@ -130,7 +150,7 @@
 
     function notice(spec) {
         var live = null;
-        toastArea().querySelectorAll('.toast').forEach(function (toast) {
+        group(true).querySelectorAll('.toast').forEach(function (toast) {
             if (toast.dataset.noticeKey === spec.key) live = toast;
         });
 

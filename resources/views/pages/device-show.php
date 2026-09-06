@@ -176,41 +176,21 @@ $facts = array_filter([
     </section>
 
     <?php
-    // Updates waiting is a standing fact, not an answer to a click, so it goes
-    // to the top of the screen and stays there until it is sent away -- and it
-    // is sent away against the number, not for good. A machine that had three
-    // waiting and now has nine has something new to say; one that still has
-    // three does not. Nothing is said at zero, which is why nothing is stored
-    // for it either.
-    $pending = (int) $device['updates_total'];
-    $securityPending = (int) $device['updates_security'];
+    // The standing facts about this machine: updates waiting, a restart owed.
+    // Every one of them is rendered, true or not -- a page that only heard
+    // about what is true now could never clear a dismissal for something that
+    // has stopped being true, and the machine would go quiet about it the next
+    // time it came round.
     ?>
-    <?php if ($pending > 0): ?>
+    <?php foreach (App\Domain\DeviceNotices::forDevice($device) as $notice): ?>
         <div hidden
-             data-notice="<?= $securityPending > 0 ? 'error' : 'warning' ?>"
-             data-notice-key="monitor.updates.<?= e($uuid) ?>"
-             data-notice-value="<?= $pending ?>"
+             data-notice="<?= e($notice['kind']) ?>"
+             data-notice-key="<?= e($notice['key']) ?>"
+             data-notice-value="<?= e($notice['value']) ?>"
              data-notice-dismiss="<?= e(t('action.dismiss')) ?>">
-            <?= icon($securityPending > 0 ? 'shield' : 'download') ?>
-            <span>
-                <?= e($securityPending > 0
-                    ? t('device.updates_notice_security', ['count' => $pending, 'security' => $securityPending])
-                    : t('device.updates_notice', ['count' => $pending])) ?>
-            </span>
+            <?= View::partial('partials/device-notice', ['notice' => $notice]) ?>
         </div>
-    <?php endif; ?>
-
-    <?php // A restart owed is a standing condition and stays in the page:
-          // there is no count to make it news again, and dismissing it would
-          // simply hide it. ?>
-    <?php if ((int) $device['reboot_required'] === 1): ?>
-        <div class="flashes" style="margin-top:18px;">
-            <div class="flash flash--warning" role="status">
-                <?= icon('refresh') ?>
-                <span><?= e(t('device.reboot_banner')) ?></span>
-            </div>
-        </div>
-    <?php endif; ?>
+    <?php endforeach; ?>
 
     <div class="cols cols--sidebar" style="margin-top:18px;">
         <div class="stack">
