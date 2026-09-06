@@ -30,10 +30,10 @@ export LC_ALL
 
 # One POSIX agent for Linux and macOS, and a PowerShell one for Windows.
 # They carry one version between them and move together, so that
-# "this machine is on 1.9.0" means the same thing whichever it is running. A
+# "this machine is on 1.10.0" means the same thing whichever it is running. A
 # change to one is a release of both, even when the other needed nothing:
 # tools/check-agent.sh and check-agent.ps1 both refuse to pass if they differ.
-AGENT_VERSION="1.9.0"
+AGENT_VERSION="1.10.0"
 CONF="${MONITOR_CONF:-/etc/monitor-agent/agent.conf}"
 
 MONITOR_URL=""
@@ -107,9 +107,18 @@ jstr() {
 }
 
 # The same, for text that is allowed to contain newlines (command output).
+# Everything below a space except the newline, which awk turns into \n below.
+#
+# The range used to be written out piece by piece and two fell through the
+# gaps: tab, and the carriage return. Both are illegal raw inside a JSON
+# string, and apt-get writes a carriage return for every percent of "Reading
+# database" -- so an upgrade on a machine with two hundred thousand files
+# produced a report the server could not read, and the whole thing was lost
+# for the sake of the progress bar in it. The log path has always stripped the
+# lot; this is the same rule, written once.
 jtext() {
     printf '"%s"' "$(printf '%s' "${1:-}" \
-        | LC_ALL=C tr -d '\000-\010\013\014\016-\037' \
+        | LC_ALL=C tr -d '\000-\011\013-\037' \
         | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' \
         | awk '{ printf "%s\\n", $0 }')"
 }
@@ -1070,16 +1079,27 @@ run_command() {
                 # --restart is deliberately not passed. A restart is a separate
                 # permission on this machine, and softwareupdate taking one on
                 # its own would go around it.
-                softwareupdate -i -a 2>&1 | tail -n 40
+                softwareupdate -i -a 2>&1
                 return $?
             fi
+            # Not piped into tail, for two reasons that were both wrong here.
+            #
+            # A pipeline's status is the last command's, so tail succeeding
+            # made a failed upgrade look like one that worked: dpkg refused to
+            # set permissions on a file, apt exited 100, and Monitor recorded
+            # "install_updates finished". And tail cannot print until the
+            # command it is reading has finished, so nothing streamed either --
+            # four minutes of silence and then the whole thing at once.
+            #
+            # What tail was for -- not putting a hundred thousand lines in the
+            # report -- is done where the report is built instead.
             if have apt-get; then
                 DEBIAN_FRONTEND=noninteractive apt-get -qq update >/dev/null 2>&1 || true
-                DEBIAN_FRONTEND=noninteractive apt-get -y -qq -o Dpkg::Options::=--force-confold upgrade 2>&1 | tail -n 40
-            elif have dnf; then dnf -y -q upgrade 2>&1 | tail -n 40
-            elif have zypper; then zypper --non-interactive update 2>&1 | tail -n 40
-            elif have apk; then apk upgrade 2>&1 | tail -n 40
-            elif have pacman; then pacman -Syu --noconfirm 2>&1 | tail -n 40
+                DEBIAN_FRONTEND=noninteractive apt-get -y -qq -o Dpkg::Options::=--force-confold upgrade 2>&1
+            elif have dnf; then dnf -y -q upgrade 2>&1
+            elif have zypper; then zypper --non-interactive update 2>&1
+            elif have apk; then apk upgrade 2>&1
+            elif have pacman; then pacman -Syu --noconfirm 2>&1
             else echo "No package manager this agent knows." >&2; return 1
             fi
             return $?
@@ -1544,7 +1564,10 @@ run_queue() {
 
         status=0
         stream_command "$id" "$name" || status=$?
-        output="$(cat "$WORK/cmd.out" 2>/dev/null || true)"
+        # The last of it, not all of it: every line went to the log as it
+        # happened, and the report only has to carry enough to say how it
+        # ended. An upgrade can print thousands.
+        output="$(tail -n 40 "$WORK/cmd.out" 2>/dev/null || true)"
 
         ok=false
         if [ "$status" -eq 0 ]; then

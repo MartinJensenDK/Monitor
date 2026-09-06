@@ -648,7 +648,7 @@ fi
 echo
 echo 'The two agents move together'
 
-# One version between them, so "this machine is on 1.9.0" means the same thing
+# One version between them, so "this machine is on 1.10.0" means the same thing
 # whichever agent it is running. A fix to one is a release of both, even when
 # the other needed nothing -- otherwise the numbers drift and stop meaning
 # anything, and Monitor offers a version to a platform that never got it.
@@ -1053,6 +1053,71 @@ case "$got" in
     ''|*[!0-9]*) bad 'boot_epoch reads a plain number on this machine' 'digits' "$got" ;;
     *) ok 'boot_epoch reads a plain number on this machine' ;;
 esac
+
+
+# ------------------------------- 8. what a package manager's output does to it ---
+#
+# Both halves of an upgrade that went wrong on a real machine, and neither was
+# the machine's fault.
+#
+# apt-get writes a carriage return for every percent of "Reading database", and
+# a raw carriage return inside a JSON string is not JSON. The report was
+# refused whole -- the outcome, the readings, the lists, all of it -- for the
+# sake of a progress bar. And the upgrade was piped into tail, so the status
+# the agent saw was tail's: dpkg refused to set permissions on a file, apt
+# exited 100, and Monitor recorded that the command had finished.
+
+echo
+echo 'What a package manager writes, and what is made of it'
+
+got=$(agent_case <<'CASEEOF'
+jtext "$(printf 'Reading database ... \r5%%\r100%%\tdone')"
+CASEEOF
+)
+if [ "$got" = '"Reading database ... 5%100%done\n"' ]; then
+    ok 'a carriage return and a tab are taken out of a report string'
+else
+    bad 'a carriage return and a tab are taken out of a report string' '"Reading database ... 5%100%done\n"' "$got"
+fi
+
+# Newlines are the one control character worth keeping, and they become \n
+# rather than being dropped with the rest.
+got=$(agent_case <<'CASEEOF'
+jtext "$(printf 'one\ntwo')"
+CASEEOF
+)
+if [ "$got" = '"one\ntwo\n"' ]; then
+    ok 'and a newline becomes an escape rather than going with them'
+else
+    bad 'and a newline becomes an escape rather than going with them' '"one\ntwo\n"' "$got"
+fi
+
+# The status has to be the package manager's, which it is not if anything is
+# piped onto the end of it.
+if grep -n 'apt-get -y -qq' "$AGENT_DIR/agent.sh" | grep -q '| *tail'; then
+    bad 'an upgrade is not piped, so its exit status is its own' 'no pipe' 'piped into tail'
+else
+    ok 'an upgrade is not piped, so its exit status is its own'
+fi
+
+if grep -q 'softwareupdate -i -a 2>&1$' "$AGENT_DIR/agent.sh"; then
+    ok 'and neither is the macOS one'
+else
+    bad 'and neither is the macOS one' 'no pipe' 'piped, or gone'
+fi
+
+got=$(agent_case <<'CASEEOF'
+run_command() { printf 'working\n'; return 100; }
+status=0
+stream_command "3a40e8a6-c537-49bc-8da7-9e20374d6808" install_updates || status=$?
+printf 'exit=%s' "$status"
+CASEEOF
+)
+if [ "$got" = "exit=100" ]; then
+    ok 'so a package manager exiting 100 arrives as 100'
+else
+    bad 'so a package manager exiting 100 arrives as 100' 'exit=100' "$got"
+fi
 
 
 echo 'Each script recognises the other'

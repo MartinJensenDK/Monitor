@@ -528,7 +528,7 @@ and this agent is root.
 ## One version, three platforms
 
 The Linux and Windows agents carry the same version number and are released
-together, so "this machine is on 1.9.0" means the same thing whichever one it
+together, so "this machine is on 1.10.0" means the same thing whichever one it
 is running. A fix to one is a release of both, even when the other needed
 nothing — otherwise the numbers drift and stop meaning anything, and this
 server ends up offering a version to a platform that never got it. Both check
