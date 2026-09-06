@@ -39,6 +39,21 @@
         document.cookie = 'monitor_theme=' + theme + ';path=/;max-age=31536000;samesite=lax';
     });
 
+    /* ── How a list of machines is shown ────────────────────────────── */
+
+    // The link already carries the choice in its address, so this page is
+    // right either way; the cookie is only so the next one starts the same.
+    // Which means it works with script switched off, minus the remembering.
+    document.addEventListener('click', function (event) {
+        var choice = event.target.closest('[data-view-choice]');
+        if (!choice) return;
+
+        var view = choice.getAttribute('data-view-choice');
+        if (view !== 'cards' && view !== 'list') return;
+
+        document.cookie = 'monitor_devices_view=' + view + ';path=/;max-age=31536000;samesite=lax';
+    });
+
     /* ── Filters ────────────────────────────────────────────────────── */
 
     // A select that filters a list applies itself. The form keeps its own

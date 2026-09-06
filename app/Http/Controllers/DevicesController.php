@@ -57,6 +57,7 @@ final class DevicesController extends Controller
             'devices' => Devices::visible($kind, $filters),
             'summary' => Devices::summary($kind),
             'filters' => $filters,
+            'view' => $this->deviceView($request),
             'locations' => Devices::locationsWithDevices($kind),
             'groups' => Groups::assignable(),
             // Nothing has enrolled yet and there is no way to start: the empty
@@ -336,6 +337,26 @@ final class DevicesController extends Controller
         $this->success($device['name'] . ' can no longer report. Run the installer again on the machine to enrol it afresh.');
 
         return $this->redirect('/devices/' . $device['uuid']);
+    }
+
+    /** @return array<string,mixed> */
+    /**
+     * Cards or a list.
+     *
+     * The address decides, so a link can carry a view and a filtered list can
+     * be sent to somebody exactly as it looked. Failing that, whatever the
+     * viewer last chose, which they keep in a cookie of their own the way they
+     * keep the theme -- it is a preference about this screen, not a fact about
+     * the fleet, and it has no business in the database.
+     */
+    private function deviceView(Request $request): string
+    {
+        $asked = (string) $request->query('view', '');
+        if (in_array($asked, ['cards', 'list'], true)) {
+            return $asked;
+        }
+
+        return $request->cookie('monitor_devices_view') === 'list' ? 'list' : 'cards';
     }
 
     /** @return array<string,mixed> */

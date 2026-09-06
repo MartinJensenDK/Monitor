@@ -20,6 +20,10 @@ final class Icons
         'alert' => '<path d="M12 4 2.5 20h19L12 4Z"/><path d="M12 10v4"/><circle cx="12" cy="17" r=".6" fill="currentColor" stroke="none"/>',
         'users' => '<circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 5.5a3.2 3.2 0 0 1 0 5"/><path d="M17.5 14.5A6 6 0 0 1 21 20"/>',
         'group' => '<rect x="3" y="4" width="8" height="7" rx="1.5"/><rect x="13" y="4" width="8" height="7" rx="1.5"/><rect x="8" y="14" width="8" height="6" rx="1.5"/><path d="M7 11v1.5h10V11"/><path d="M12 12.5V14"/>',
+        // The two ways a list of machines can be laid out, drawn as what they
+        // produce: four panels, and four lines.
+        'grid' => '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
+        'list' => '<path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h10"/>',
         'sliders' => '<path d="M4 7h10"/><path d="M18 7h2"/><circle cx="16" cy="7" r="2"/><path d="M4 17h4"/><path d="M12 17h8"/><circle cx="10" cy="17" r="2"/>',
         'logout' => '<path d="M14 5V4a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1"/><path d="M10 12h11"/><path d="m18 9 3 3-3 3"/>',
         'plus' => '<path d="M12 5v14"/><path d="M5 12h14"/>',

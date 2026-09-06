@@ -290,6 +290,13 @@ return [
     'device.software_none' => 'Nothing matched.',
     'device.software_more' => 'Showing :shown of :total. Search to narrow it down.',
     'device.name' => 'Name',
+    'device.machine' => 'Machine',
+    'device.status' => 'Status',
+    'device.last_seen' => 'Last seen',
+    'device.waiting_head' => 'Waiting',
+    'device.view' => 'How this list is shown',
+    'device.view_cards' => 'Show as cards',
+    'device.view_list' => 'Show as a list',
     'device.version' => 'Version',
     'device.publisher' => 'Publisher',
 

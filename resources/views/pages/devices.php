@@ -10,6 +10,7 @@
  * @var array<int,array<string,mixed>> $locations
  * @var array<int,array<string,mixed>> $groups
  * @var bool $hasKeys
+ * @var string $view 'cards' or 'list'
  */
 
 use App\Core\View;
@@ -19,6 +20,21 @@ $isServers = $kind === Devices::KIND_SERVER;
 $base = $isServers ? '/servers' : '/clients';
 $quiet = $summary['offline'] + $summary['stale'];
 $noun = $isServers ? t('device.servers_lower') : t('device.clients_lower');
+
+// The same list, with whichever view is not showing on the end of it, so the
+// toggle keeps every filter somebody has already set.
+$viewLink = static function (string $wanted) use ($base, $filters): string {
+    $query = array_filter([
+        'q' => $filters['q'],
+        'status' => $filters['status'],
+        'os' => $filters['os'],
+        'group' => $filters['group'] > 0 ? (string) $filters['group'] : '',
+        'location' => $filters['location'] > 0 ? (string) $filters['location'] : '',
+        'view' => $wanted,
+    ], static fn ($value): bool => (string) $value !== '');
+
+    return $base . '?' . http_build_query($query);
+};
 ?>
 <div class="devpage">
 
@@ -104,14 +120,27 @@ $noun = $isServers ? t('device.servers_lower') : t('device.clients_lower');
                     </select>
                 <?php endif; ?>
 
+                <input type="hidden" name="view" value="<?= e($view) ?>">
                 <button class="btn" type="submit"><?= e(t('action.filter')) ?></button>
             </form>
 
-            <?php if (can('devices.enroll')): ?>
-                <div class="btn-row">
+            <div class="btn-row">
+                <span class="viewtoggle" role="group" aria-label="<?= e(t('device.view')) ?>">
+                    <?php foreach ([
+                        'cards' => ['icon' => 'grid', 'label' => t('device.view_cards')],
+                        'list' => ['icon' => 'list', 'label' => t('device.view_list')],
+                    ] as $option => $meta): ?>
+                        <a class="viewtoggle__option" href="<?= e($viewLink($option)) ?>"
+                           data-view-choice="<?= e($option) ?>"
+                           aria-current="<?= $view === $option ? 'true' : 'false' ?>"
+                           title="<?= e($meta['label']) ?>"><?= icon($meta['icon'], 'icon icon--sm') ?><span class="visually-hidden"><?= e($meta['label']) ?></span></a>
+                    <?php endforeach; ?>
+                </span>
+
+                <?php if (can('devices.enroll')): ?>
                     <a class="btn btn--primary" href="/devices/enrollment"><?= icon('plus') ?><?= e(t('action.add_machine')) ?></a>
-                </div>
-            <?php endif; ?>
+                <?php endif; ?>
+            </div>
         </div>
 
         <?php if ($devices === []): ?>
@@ -142,6 +171,23 @@ $noun = $isServers ? t('device.servers_lower') : t('device.clients_lower');
                     <p><?= e(t('device.no_match_body')) ?></p>
                     <a class="btn" href="<?= e($base) ?>"><?= e(t('action.clear_filters')) ?></a>
                 <?php endif; ?>
+            </div>
+        <?php elseif ($view === 'list'): ?>
+            <div class="devrows">
+                <div class="devrow devrow--head">
+                    <span class="eyebrow"><?= e(t('device.machine')) ?></span>
+                    <span class="eyebrow"><?= e(t('device.status')) ?></span>
+                    <span class="eyebrow"><?= e(t('device.operating_system')) ?></span>
+                    <span class="eyebrow" style="text-align:right;"><?= e(t('device.cpu')) ?></span>
+                    <span class="eyebrow" style="text-align:right;"><?= e(t('device.memory')) ?></span>
+                    <span class="eyebrow" style="text-align:right;"><?= e(t('device.storage')) ?></span>
+                    <span class="eyebrow"><?= e(t('device.waiting_head')) ?></span>
+                    <span class="eyebrow" style="text-align:right;"><?= e(t('device.last_seen')) ?></span>
+                    <span></span>
+                </div>
+                <?php foreach ($devices as $device): ?>
+                    <?= View::partial('partials/device-row', ['device' => $device]) ?>
+                <?php endforeach; ?>
             </div>
         <?php else: ?>
             <div class="panel__body">

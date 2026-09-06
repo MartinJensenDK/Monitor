@@ -277,6 +277,13 @@ return [
     'device.software_none' => 'Ingenting matchede.',
     'device.software_more' => 'Viser :shown af :total. Søg for at snævre det ind.',
     'device.name' => 'Navn',
+    'device.machine' => 'Maskine',
+    'device.status' => 'Status',
+    'device.last_seen' => 'Sidst set',
+    'device.waiting_head' => 'Venter',
+    'device.view' => 'Hvordan listen vises',
+    'device.view_cards' => 'Vis som kort',
+    'device.view_list' => 'Vis som liste',
     'device.version' => 'Version',
     'device.publisher' => 'Udgiver',
 

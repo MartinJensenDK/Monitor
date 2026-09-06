@@ -834,6 +834,106 @@ a:hover { text-decoration: underline; }
     justify-content: flex-end;
 }
 
+/* ── Machines as a list ─────────────────────────────────────────────────
+   The same vocabulary as .row above, with its own columns: three readings
+   lined up so a column can be read down the page, which is the one thing a
+   list does that a grid of cards cannot.                                   */
+
+.devrows { display: flex; flex-direction: column; }
+
+.devrow {
+    display: grid;
+    grid-template-columns:
+        minmax(180px, 1.6fr)   /* name and address */
+        92px                   /* status */
+        minmax(120px, 1fr)     /* operating system */
+        repeat(3, minmax(62px, auto))  /* cpu, memory, storage: wide enough for the heading */
+        minmax(96px, 0.8fr)    /* what is waiting */
+        88px                   /* last seen */
+        36px;                  /* open */
+    align-items: center;
+    gap: 14px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line-soft);
+    transition: background 0.12s ease;
+}
+
+.devrow:last-child { border-bottom: 0; }
+.devrow:hover { background: var(--panel-2); }
+
+.devrow--head {
+    padding-top: 9px;
+    padding-bottom: 9px;
+    background: var(--panel-2);
+    border-bottom: 1px solid var(--line);
+}
+
+.devrow--head:hover { background: var(--panel-2); }
+.devrow--head > * { min-width: 0; white-space: nowrap; }
+
+.devrow__id { display: flex; align-items: center; gap: 10px; min-width: 0; }
+
+.devrow__icon {
+    width: 30px;
+    height: 30px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-sm);
+    background: var(--panel-3);
+    color: var(--ink-muted);
+}
+
+.devrow__os { font-size: 12px; color: var(--ink-2); min-width: 0; }
+
+/* The number sits above its own bar rather than beside it: three of these in
+   a row, and a bar to the side would leave nothing to compare vertically. */
+.devrow__meter {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.devrow__track {
+    display: block;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--panel-3);
+    overflow: hidden;
+}
+
+.devrow__tags { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; }
+
+.devrow__seen {
+    font-size: 11px;
+    color: var(--ink-muted);
+    text-align: right;
+}
+
+/* Two links, one lit. The same shape as the tabs on Settings, small enough to
+   sit beside the button that adds a machine. */
+.viewtoggle { display: inline-flex; gap: 2px; padding: 2px; border-radius: var(--radius-sm); background: var(--panel-3); }
+
+.viewtoggle__option {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 26px;
+    border-radius: calc(var(--radius-sm) - 2px);
+    color: var(--ink-muted);
+}
+
+.viewtoggle__option:hover { color: var(--ink); text-decoration: none; }
+
+.viewtoggle__option[aria-current="true"] {
+    background: var(--panel);
+    color: var(--ink);
+    box-shadow: var(--shadow-sm, 0 1px 2px rgb(0 0 0 / 0.12));
+}
+
 /* ── Tables ─────────────────────────────────────────────────────────── */
 
 .table-wrap { overflow-x: auto; }
@@ -1497,6 +1597,11 @@ a:hover { text-decoration: underline; }
     .grid--split { grid-template-columns: minmax(0, 1fr); }
     .row { grid-template-columns: minmax(160px, 1.6fr) 80px minmax(120px, 1fr) 72px 40px; }
     .row__uptime30 { display: none; }
+
+    /* The operating system is the first thing to go: it is the column least
+       likely to be what somebody came to compare. */
+    .devrow { grid-template-columns: minmax(150px, 1.6fr) 88px repeat(3, minmax(58px, auto)) minmax(80px, 0.7fr) 80px 36px; }
+    .devrow__os { display: none; }
 }
 
 @media (max-width: 860px) {
@@ -1543,6 +1648,26 @@ a:hover { text-decoration: underline; }
     .row__metric small { display: inline; }
     .row__actions { display: none; }
     .row--head { display: none; }
+
+    /* Not a grid at this width. Three identical readings cannot share one
+       named area, and naming three of them is more machinery than a row that
+       simply wraps. */
+    .devrow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px 12px;
+    }
+
+    .devrow__id { flex: 1 1 60%; }
+    .devrow__status { margin-left: auto; }
+    .devrow__meter { flex: 1 1 72px; flex-direction: row; align-items: center; gap: 8px; text-align: left; }
+    .devrow__track { flex: 1 1 auto; }
+    .devrow__tags { flex: 1 1 auto; }
+    .devrow__seen { margin-left: auto; }
+    .devrow__os,
+    .devrow .row__actions { display: none; }
+    .devrow--head { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
