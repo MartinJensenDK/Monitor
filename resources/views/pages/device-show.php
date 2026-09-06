@@ -19,6 +19,7 @@
  * @var bool $canEdit
  */
 
+use App\Core\View;
 use App\Domain\Devices;
 use App\Support\Sparkline;
 
@@ -464,42 +465,10 @@ $facts = array_filter([
             </section>
 
             <?php if ($canEdit): ?>
-                <section class="panel">
+                <section class="panel" data-commands="<?= e($uuid) ?>">
                     <div class="panel__head"><h2><?= icon('history') ?><?= e(t('device.commands_recent')) ?></h2></div>
-                    <div class="panel__body">
-                        <?php if ($commands === []): ?>
-                            <p class="muted mt-0"><?= e(t('device.commands_none_yet')) ?></p>
-                        <?php else: ?>
-                            <div class="table-wrap" style="margin-top:16px;">
-                                <table class="table table--compact">
-                                    <tbody>
-                                        <?php foreach ($commands as $command): ?>
-                                            <tr>
-                                                <td>
-                                                    <strong><?= e(App\Domain\DeviceCommands::label((string) $command['command'])) ?></strong>
-                                                    <span class="muted block"><?= e(format_since((string) $command['requested_at'])) ?><?= empty($command['requested_by_name']) ? '' : ' · ' . e((string) $command['requested_by_name']) ?></span>
-                                                    <?php if (!empty($command['error'])): ?>
-                                                        <span class="muted block truncate" title="<?= e((string) $command['error']) ?>"><?= e((string) $command['error']) ?></span>
-                                                    <?php endif; ?>
-                                                </td>
-                                                <td class="table__right">
-                                                    <?php $state = (string) $command['status']; ?>
-                                                    <span class="pill pill--<?= $state === 'done' ? 'up' : ($state === 'failed' ? 'down' : ($state === 'queued' || $state === 'claimed' ? 'pending' : 'paused')) ?>">
-                                                        <?= e($state) ?>
-                                                    </span>
-                                                    <?php if ($state === 'queued'): ?>
-                                                        <form method="post" action="/devices/<?= e($uuid) ?>/commands/<?= (int) $command['id'] ?>/cancel">
-                                                            <?= csrf_field() ?>
-                                                            <button class="btn btn--sm btn--ghost" type="submit"><?= e(t('action.cancel')) ?></button>
-                                                        </form>
-                                                    <?php endif; ?>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                        <?php endif; ?>
+                    <div class="panel__body" data-commands-body>
+                        <?= View::partial('partials/device-commands', ['commands' => $commands, 'uuid' => $uuid]) ?>
                     </div>
                 </section>
             <?php endif; ?>

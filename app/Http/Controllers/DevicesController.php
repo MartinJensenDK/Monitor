@@ -10,6 +10,7 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Core\Session;
 use App\Core\Validator;
+use App\Core\View;
 use App\Domain\AuditLog;
 use App\Domain\DeviceCommands;
 use App\Domain\DeviceLogs;
@@ -120,6 +121,23 @@ final class DevicesController extends Controller
             // While something is queued or collected the page polls quickly;
             // otherwise it idles.
             'busy' => DeviceCommands::isBusy($id),
+            // What has been asked of the machine, rendered here rather than
+            // described. The panel is a pill, a relative time and a cancel
+            // form with a token in it, and building that twice -- once in PHP
+            // and once in script -- is how the two come to disagree. The page
+            // and this answer go through the same template.
+            //
+            // Behind the same condition the page puts it behind. Somebody who
+            // may look at a machine but not act on it does not see this panel,
+            // and an endpoint that handed it over anyway would be a way round
+            // that -- history of who asked for what, and a cancel form they
+            // have no business holding.
+            'commands' => Devices::canEdit($device)
+                ? View::partial('partials/device-commands', [
+                    'commands' => DeviceCommands::recent($id),
+                    'uuid' => (string) $device['uuid'],
+                ])
+                : null,
         ]);
     }
 

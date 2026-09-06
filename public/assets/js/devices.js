@@ -113,6 +113,24 @@
     var IDLE_MS = 20000;
     var MAX_LINES = 600;
 
+    // The commands panel rides along on the log's request rather than opening
+    // one of its own: the two are the same story, and "busy" is a fact about
+    // commands anyway. The server sends the panel already rendered, so this
+    // only has to notice when it has changed -- writing it back every two
+    // seconds would take the focus off whatever somebody was about to click.
+    function updateCommands(uuid, html) {
+        if (typeof html !== 'string') return;
+
+        var panel = document.querySelector('[data-commands="' + uuid + '"]');
+        if (!panel) return;
+
+        var body = panel.querySelector('[data-commands-body]');
+        if (!body || body.innerHTML === html) return;
+
+        body.innerHTML = html;
+        refresh();                     // the times in it are relative
+    }
+
     function startLog(panel) {
         var list = panel.querySelector('[data-log-lines]');
         var empty = panel.querySelector('.log__empty');
@@ -186,6 +204,7 @@
                 since = data.last || since;
                 busy = !!data.busy;
                 if (live) live.hidden = !busy;
+                updateCommands(uuid, data.commands);
                 schedule();
             }).catch(function () {
                 failures++;
