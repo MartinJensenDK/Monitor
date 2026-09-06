@@ -442,6 +442,41 @@ else
     JITTER=30
 fi
 
+# How much of the machine the agent is allowed to touch.
+#
+# An agent that only reports gets the lot: it reads a great deal and writes
+# almost nothing, so most of what a compromised server could ask of it runs
+# into a wall.
+#
+# A machine that consented to updates cannot have that, and the reason is not a
+# detail. Installing a package runs its maintainer scripts as root -- arbitrary
+# code, by design, which is precisely what --allow-updates grants.
+# RestrictSUIDSGID then refuses dpkg the setuid bit on files like /usr/bin/su
+# and Chrome's sandbox helper, so an upgrade carrying one fails partway through
+# and leaves the package system half configured. That sandbox does not make the
+# machine safer; it makes the permission it was given impossible to use, and
+# breaks the machine on the way.
+#
+# So the sandbox matches what the machine agreed to. Nothing is relaxed on one
+# that only reports.
+if [ "$UPDATES" = "1" ]; then
+    SANDBOX="# This machine allows updates to be installed from Monitor, which means
+# running package maintainer scripts as root. A sandbox that forbids the setuid
+# bit, hides /root or blocks sysctl cannot coexist with that, so it is not
+# written here. The machine's consent is the lock; this was never the one."
+else
+    SANDBOX="# Everything below narrows what running as root actually means: it cannot
+# write anywhere except the places it needs, and it cannot gain privileges it
+# was not given. This machine does not install updates, so none of it is in the
+# way of anything it does.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectControlGroups=yes
+ProtectKernelTunables=yes
+RestrictSUIDSGID=yes"
+fi
+
 if [ "$PLATFORM" = "macos" ]; then
     # launchd, as a system daemon: it runs as root, survives logout, and starts
     # at boot. StartInterval is the whole schedule -- launchd has no separate
@@ -517,14 +552,7 @@ Type=oneshot
 Environment=MONITOR_CONF=$CONF
 ExecStart=$AGENT --loop
 # The agent reads hardware details and the package manager, so it runs as root.
-# Everything below narrows what that actually means: it cannot write anywhere
-# except the places it needs, and it cannot gain privileges it was not given.
-NoNewPrivileges=yes
-PrivateTmp=yes
-ProtectHome=yes
-ProtectControlGroups=yes
-ProtectKernelTunables=yes
-RestrictSUIDSGID=yes
+$SANDBOX
 ReadWritePaths=$CONF_DIR
 TimeoutStartSec=300
 UNITEOF

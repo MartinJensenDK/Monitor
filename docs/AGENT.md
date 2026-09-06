@@ -407,6 +407,27 @@ What "in full" means is what that machine collects -- `MONITOR_COLLECT`. An
 agent installed with `--collect disks` sends disks, promptly. Somebody chose
 that, and a restart is not a reason to overrule them.
 
+### The sandbox and the permission
+
+On Linux the agent runs from a systemd unit that gives root very little: no new
+privileges, no `/root`, no kernel tunables, and no setting of the setuid bit.
+An agent that only reports needs none of those, so anything a compromised
+server could ask of it runs into a wall.
+
+A machine that was installed with `--allow-updates` gets a plainer unit, and
+the reason is not a detail. Installing a package runs its maintainer scripts as
+root — arbitrary code, by design, which is exactly what that flag grants.
+`RestrictSUIDSGID=` then refuses dpkg the setuid bit on files like `/usr/bin/su`
+or Chrome's sandbox helper, so an upgrade carrying one fails partway through and
+leaves the package system half configured. It does not make that machine safer;
+it makes the permission it was given impossible to use, and breaks the machine
+on the way out.
+
+So the sandbox follows the consent. A machine that only reports keeps all of
+it, and getting the permission later rewrites the unit, because that is a run
+of the installer like any other. If a machine is ever left half configured by
+this, `sudo dpkg --configure -a` on it is the way back.
+
 ---
 
 ## When a machine goes quiet
@@ -528,7 +549,7 @@ and this agent is root.
 ## One version, three platforms
 
 The Linux and Windows agents carry the same version number and are released
-together, so "this machine is on 1.10.0" means the same thing whichever one it
+together, so "this machine is on 1.11.0" means the same thing whichever one it
 is running. A fix to one is a release of both, even when the other needed
 nothing — otherwise the numbers drift and stop meaning anything, and this
 server ends up offering a version to a platform that never got it. Both check

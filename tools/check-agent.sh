@@ -648,7 +648,7 @@ fi
 echo
 echo 'The two agents move together'
 
-# One version between them, so "this machine is on 1.10.0" means the same thing
+# One version between them, so "this machine is on 1.11.0" means the same thing
 # whichever agent it is running. A fix to one is a release of both, even when
 # the other needed nothing -- otherwise the numbers drift and stop meaning
 # anything, and Monitor offers a version to a platform that never got it.
@@ -1117,6 +1117,56 @@ if [ "$got" = "exit=100" ]; then
     ok 'so a package manager exiting 100 arrives as 100'
 else
     bad 'so a package manager exiting 100 arrives as 100' 'exit=100' "$got"
+fi
+
+
+# --------------------------------- 9. the sandbox against the permission ---
+#
+# The unit was written for an agent that only reports, and RestrictSUIDSGID
+# refuses dpkg the setuid bit -- so on a machine that had been given
+# --allow-updates, any upgrade carrying a setuid file failed partway through
+# and left the package system half configured. Two machines, two different
+# packages, the same line of our own unit.
+#
+# The sandbox has to follow the permission, and both halves are worth pinning:
+# a machine that only reports must not quietly lose it either.
+
+echo
+echo 'The sandbox matches what the machine agreed to'
+
+unit_for() {
+    # The installer's own branch and its own heredoc, with nothing between them.
+    {
+        printf '#!/bin/sh\nAGENT=/a\nCONF=/c\nCONF_DIR=/d\nINTERVAL=300\nUNIT=/dev/stdout\nUPDATES="%s"\n' "$1"
+        awk '/^if \[ "\$UPDATES" = "1" \]; then$/, /^fi$/' "$AGENT_DIR/install.sh"
+        awk '/^    cat > "\$UNIT" <<UNITEOF$/, /^UNITEOF$/' "$AGENT_DIR/install.sh" | sed 's/^    cat/cat/'
+    } > "$WORK/unit.sh"
+    sh "$WORK/unit.sh"
+}
+
+got=$(unit_for 0)
+case "$got" in
+    *RestrictSUIDSGID=yes*NoNewPrivileges=yes*|*NoNewPrivileges=yes*RestrictSUIDSGID=yes*)
+        ok 'a machine that only reports keeps the whole sandbox' ;;
+    *) bad 'a machine that only reports keeps the whole sandbox' 'RestrictSUIDSGID and NoNewPrivileges' "$got" ;;
+esac
+
+got=$(unit_for 1)
+case "$got" in
+    *RestrictSUIDSGID=yes*)
+        bad 'and one that installs updates is not given a unit that forbids it' 'no RestrictSUIDSGID' "$got" ;;
+    *ExecStart=*)
+        ok 'and one that installs updates is not given a unit that forbids it' ;;
+    *) bad 'and one that installs updates is not given a unit that forbids it' 'a unit' "$got" ;;
+esac
+
+# The relaxation is only ever about the sandbox. What the agent is told to run,
+# and against which config, must not move with it.
+if [ "$(unit_for 0 | grep -c '^ExecStart=')" = "1" ] && [ "$(unit_for 1 | grep -c '^ExecStart=')" = "1" ] \
+    && [ "$(unit_for 0 | grep '^ExecStart=')" = "$(unit_for 1 | grep '^ExecStart=')" ]; then
+    ok 'and the two units differ in nothing else that matters'
+else
+    bad 'and the two units differ in nothing else that matters' 'one identical ExecStart in each' 'they differ'
 fi
 
 
