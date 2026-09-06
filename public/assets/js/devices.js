@@ -131,6 +131,18 @@
         refresh();                     // the times in it are relative
     }
 
+    // The agent fact in the sidebar: which agent this machine runs, and whether
+    // that is the one on offer. It changes without anybody touching the page --
+    // the machine replaces its own agent and says so a minute later.
+    function updateAgentFact(html) {
+        if (typeof html !== 'string') return;
+
+        var cell = document.querySelector('[data-agent-fact]');
+        if (!cell || cell.innerHTML === html) return;
+
+        cell.innerHTML = html;
+    }
+
     function startLog(panel) {
         var list = panel.querySelector('[data-log-lines]');
         var empty = panel.querySelector('.log__empty');
@@ -205,6 +217,18 @@
                 busy = !!data.busy;
                 if (live) live.hidden = !busy;
                 updateCommands(uuid, data.commands);
+                updateAgentFact(data.agent);
+
+                // The standing notice about updates waiting, kept honest by
+                // the same answer: install them and it goes; find more and it
+                // is news again even if it was sent away at the old number.
+                if (window.monitorNotice) {
+                    window.monitorNotice(data.notice || {
+                        key: 'monitor.updates.' + uuid,
+                        value: ''
+                    });
+                }
+
                 schedule();
             }).catch(function () {
                 failures++;

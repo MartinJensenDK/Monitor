@@ -255,6 +255,7 @@ return [
     'device.address' => 'Address',
     'device.seen_from' => 'Seen from',
     'device.agent' => 'Agent',
+    'device.agent_current' => 'Up-to-date',
     'device.agent_update_ready' => ':version available',
     'device.agent_updating' => 'This server holds :version, and offers it every time this machine checks in.',
     'device.agent_behind' => 'This server holds :version. The machine was installed with --no-self-update, so run the installer on it.',

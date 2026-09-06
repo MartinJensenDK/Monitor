@@ -110,6 +110,11 @@ final class DevicesController extends Controller
 
         $lines = DeviceLogs::since($id, $since, 200);
 
+        // Re-read rather than reuse the row the guard fetched: a report may
+        // have landed between the two, and the whole point of this answer is
+        // to carry what has changed.
+        $fresh = Devices::find($id) ?? $device;
+
         return Response::json([
             'lines' => array_map(static fn (array $row): array => [
                 'id' => (int) $row['id'],
@@ -138,6 +143,16 @@ final class DevicesController extends Controller
                     'uuid' => (string) $device['uuid'],
                 ])
                 : null,
+            // Which agent it is running and whether that is the one on offer.
+            // It changes without anybody touching the page -- a machine
+            // replaces its own agent and says so a minute later -- which is
+            // exactly what a reload should not be needed for.
+            'agent' => View::partial('partials/device-agent', ['device' => $fresh]),
+            // And what is waiting on it. Sent as its parts rather than
+            // rendered, because the page has to decide whether to show it at
+            // all: dismissed against a count, and news again when the count
+            // moves.
+            'notice' => $this->updatesNotice($fresh),
         ]);
     }
 
@@ -358,6 +373,37 @@ final class DevicesController extends Controller
     }
 
     /** @return array<string,mixed> */
+    /**
+     * What is waiting on a machine, or nothing.
+     *
+     * The key and the value are what the page dismisses against: sent away for
+     * a count rather than for good, so a machine that had three waiting and
+     * now has nine has something to say again. Nothing at all at zero, which
+     * is also what takes a notice off the screen once the updates are in.
+     *
+     * @param array<string,mixed> $device
+     * @return array<string,mixed>|null
+     */
+    private function updatesNotice(array $device): ?array
+    {
+        $pending = (int) ($device['updates_total'] ?? 0);
+        if ($pending <= 0) {
+            return null;
+        }
+
+        $security = (int) ($device['updates_security'] ?? 0);
+
+        return [
+            'key' => 'monitor.updates.' . (string) $device['uuid'],
+            'value' => (string) $pending,
+            'kind' => $security > 0 ? 'error' : 'warning',
+            'html' => icon($security > 0 ? 'shield' : 'download')
+                . '<span>' . e($security > 0
+                    ? t('device.updates_notice_security', ['count' => $pending, 'security' => $security])
+                    : t('device.updates_notice', ['count' => $pending])) . '</span>',
+        ];
+    }
+
     /**
      * Cards or a list.
      *

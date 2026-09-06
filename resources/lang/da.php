@@ -242,6 +242,7 @@ return [
     'device.address' => 'Adresse',
     'device.seen_from' => 'Set fra',
     'device.agent' => 'Agent',
+    'device.agent_current' => 'Opdateret',
     'device.agent_update_ready' => ':version tilgængelig',
     'device.agent_updating' => 'Denne server har :version og tilbyder den, hver gang maskinen melder sig.',
     'device.agent_behind' => 'Denne server har :version. Maskinen er installeret med --no-self-update, så kør installationsprogrammet på den.',

@@ -120,30 +120,74 @@
     });
 
     // A standing fact about the page, dismissed against a value rather than
-    // for good.
-    document.querySelectorAll('[data-notice]').forEach(function (source) {
-        var key = source.getAttribute('data-notice-key') || '';
-        var value = source.getAttribute('data-notice-value') || '';
-        var seen = null;
+    // for good -- and able to change while the page is open, because the fact
+    // can: an upgrade finishes and the number waiting is a different number.
+    //
+    // Named on the window because the page that watches a machine lives in
+    // another file and has to be able to hand this the new state. One function,
+    // rather than a second copy of the toast over there.
+    var dismissLabel = 'Dismiss';
 
-        try { seen = window.localStorage.getItem(key); } catch (error) { seen = null; }
-        if (key && seen === value) return;
+    function notice(spec) {
+        var live = null;
+        toastArea().querySelectorAll('.toast').forEach(function (toast) {
+            if (toast.dataset.noticeKey === spec.key) live = toast;
+        });
+
+        // Nothing waiting any more: take it off the screen, and forget the
+        // dismissal so the next thing to arrive is news.
+        if (!spec.value) {
+            if (live) dismiss(live);
+            try { window.localStorage.removeItem(spec.key); } catch (error) { /* nothing to forget */ }
+            return;
+        }
+
+        if (live) {
+            // Already up. Only the wording and the value it is dismissed
+            // against need to move; putting it up again would make it flash.
+            if (live.dataset.noticeValue === spec.value) return;
+            live.dataset.noticeValue = spec.value;
+            live.className = 'toast toast--wide toast--' + (spec.kind || 'warning') + ' toast--in';
+            live.innerHTML = spec.html;
+            live.appendChild(closeButton());
+            return;
+        }
+
+        var seen = null;
+        try { seen = window.localStorage.getItem(spec.key); } catch (error) { seen = null; }
+        if (seen === spec.value) return;
 
         var toast = document.createElement('div');
-        toast.className = 'toast toast--wide toast--' + (source.getAttribute('data-notice') || 'warning');
+        toast.className = 'toast toast--wide toast--' + (spec.kind || 'warning');
         toast.setAttribute('role', 'status');
-        toast.dataset.noticeKey = key;
-        toast.dataset.noticeValue = value;
-        toast.innerHTML = source.innerHTML;
+        toast.dataset.noticeKey = spec.key;
+        toast.dataset.noticeValue = spec.value;
+        toast.innerHTML = spec.html;
+        toast.appendChild(closeButton());
 
+        show(toast, true);
+    }
+
+    function closeButton() {
         var close = document.createElement('button');
         close.type = 'button';
         close.className = 'toast__close';
-        close.setAttribute('aria-label', source.getAttribute('data-notice-dismiss') || 'Dismiss');
+        close.setAttribute('aria-label', dismissLabel);
         close.textContent = '\u00d7';
-        toast.appendChild(close);
 
-        show(toast, true);
+        return close;
+    }
+
+    window.monitorNotice = notice;
+
+    document.querySelectorAll('[data-notice]').forEach(function (source) {
+        dismissLabel = source.getAttribute('data-notice-dismiss') || dismissLabel;
+        notice({
+            key: source.getAttribute('data-notice-key') || '',
+            value: source.getAttribute('data-notice-value') || '',
+            kind: source.getAttribute('data-notice') || 'warning',
+            html: source.innerHTML
+        });
     });
 
     /* ── How a list of machines is shown ────────────────────────────── */
