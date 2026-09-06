@@ -448,6 +448,22 @@ $tabs = [
                         'sudo sh install.sh --uninstall',
                 ],
             ],
+            'macos' => [
+                'label' => 'macOS',
+                'needs' => 'sh, curl, sudo',
+                'lines' => [
+                    'Report only, changing nothing' =>
+                        "curl -fsSLO {$agentBaseUrl}/agent/macos/install.sh\nsudo sh install.sh --key mek_xxxxxxxxxxxxxxxxxxxxxxxx",
+                    'Allowing updates and restarts from here' =>
+                        'sudo sh install.sh --key mek_xxxxxxxxxxxxxxxxxxxxxxxx --allow-updates --allow-reboot',
+                    'Granting a permission to a machine already enrolled' =>
+                        'sudo sh install.sh --allow-reboot',
+                    'Refusing to let the agent replace itself' =>
+                        'sudo sh install.sh --key mek_xxxxxxxxxxxxxxxxxxxxxxxx --no-self-update',
+                    'Removing it' =>
+                        'sudo sh install.sh --uninstall',
+                ],
+            ],
             'windows' => [
                 'label' => 'Windows',
                 'needs' => 'PowerShell 5.1, as administrator',
@@ -501,7 +517,8 @@ $tabs = [
                 <p class="field__hint" style="margin-top:14px;">
                     The installer keeps every setting a machine already has, so a second run is a repair rather than a
                     reset — a permission is only changed by naming it. Checksums for what this server is serving:
-                    <code class="num"><?= e(substr($agentChecksums['linux'], 0, 16)) ?>…</code> (Linux),
+                    <code class="num"><?= e(substr($agentChecksums['linux'], 0, 16)) ?>…</code> (Linux and macOS —
+                    it is one script, which works out which of the two it woke up on),
                     <code class="num"><?= e(substr($agentChecksums['windows'], 0, 16)) ?>…</code> (Windows).
                 </p>
             </div>

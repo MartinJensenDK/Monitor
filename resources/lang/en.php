@@ -343,6 +343,8 @@ return [
     'device.install_title' => 'One command per machine',
     'device.linux' => 'Linux',
     'device.linux_needs' => 'needs curl and root',
+    'device.macos' => 'macOS',
+    'device.macos_needs' => 'needs sudo',
     'device.windows' => 'Windows',
     'device.windows_needs' => 'needs an elevated PowerShell',
     'device.checksum' => 'SHA-256 of the installer:',

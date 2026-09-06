@@ -5,7 +5,7 @@
 #
 # Puts the agent in /usr/local/lib/monitor-agent, writes a config readable only
 # by root, exchanges the enrolment key for a token belonging to this machine,
-# and schedules a report every few minutes with systemd or cron.
+# and schedules a report every few minutes with systemd, cron or launchd.
 #
 # By default the agent only reports. Nothing on this machine can be changed
 # from Monitor unless you pass --allow-updates or --allow-reboot below, and
@@ -78,6 +78,17 @@ UNIT="/etc/systemd/system/monitor-agent.service"
 TIMER="/etc/systemd/system/monitor-agent.timer"
 CRON="/etc/cron.d/monitor-agent"
 
+# Linux or macOS. One installer for both, for the same reason there is one
+# agent: the difficult parts -- keeping a machine's settings, spending a key
+# once, checking the token still works -- are identical, and a second copy of
+# them is a second copy of every bug in them. What differs is where the agent
+# is served from and what schedules it.
+PLATFORM="linux"
+[ "$(uname -s 2>/dev/null)" = "Darwin" ] && PLATFORM="macos"
+
+LAUNCHD_LABEL="dk.monitor.agent"
+LAUNCHD_PLIST="/Library/LaunchDaemons/$LAUNCHD_LABEL.plist"
+
 say() { printf '%s\n' "$*"; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
@@ -143,6 +154,15 @@ done
 [ "$(id -u)" = "0" ] || die "run this as root: the config must be readable by root only, and the scheduler needs to be installed."
 
 remove_schedule() {
+    if [ "$PLATFORM" = "macos" ]; then
+        # bootout is the modern spelling and unload the old one; a machine that
+        # has never had the job loaded makes both of them fail, which is fine.
+        launchctl bootout "system/$LAUNCHD_LABEL" >/dev/null 2>&1 || true
+        launchctl unload -w "$LAUNCHD_PLIST" >/dev/null 2>&1 || true
+        rm -f "$LAUNCHD_PLIST"
+        return 0
+    fi
+
     if command -v systemctl >/dev/null 2>&1; then
         systemctl disable --now monitor-agent.timer >/dev/null 2>&1 || true
     fi
@@ -300,8 +320,8 @@ curl_opts="--fail --silent --show-error --location --connect-timeout 15 --max-ti
 [ "$INSECURE" = "1" ] && curl_opts="$curl_opts --insecure"
 
 # shellcheck disable=SC2086
-curl $curl_opts --output "$AGENT.new" "${MONITOR_URL%/}/agent/linux/agent.sh" \
-    || die "could not download the agent from ${MONITOR_URL%/}/agent/linux/agent.sh"
+curl $curl_opts --output "$AGENT.new" "${MONITOR_URL%/}/agent/$PLATFORM/agent.sh" \
+    || die "could not download the agent from ${MONITOR_URL%/}/agent/$PLATFORM/agent.sh"
 
 # A truncated download would install something that silently does half a job.
 head -n 1 "$AGENT.new" | grep -q '^#!/bin/sh' || die "the downloaded agent does not look like a shell script."
@@ -422,7 +442,67 @@ else
     JITTER=30
 fi
 
-if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+if [ "$PLATFORM" = "macos" ]; then
+    # launchd, as a system daemon: it runs as root, survives logout, and starts
+    # at boot. StartInterval is the whole schedule -- launchd has no separate
+    # timer object to fall out of step the way a systemd timer can, and no
+    # anchor that can be in the past.
+    #
+    # AbandonProcessGroup matters more than it looks. Without it, launchd kills
+    # the whole process group when the job's own process exits, which would cut
+    # off a package manager mid-install.
+    cat > "$LAUNCHD_PLIST" <<PLISTEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>$LAUNCHD_LABEL</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/sh</string>
+        <string>$AGENT</string>
+        <string>--loop</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>MONITOR_CONF</key>
+        <string>$CONF</string>
+    </dict>
+    <key>StartInterval</key>
+    <integer>$CADENCE</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>AbandonProcessGroup</key>
+    <true/>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>StandardOutPath</key>
+    <string>/dev/null</string>
+    <key>StandardErrorPath</key>
+    <string>/dev/null</string>
+</dict>
+</plist>
+PLISTEOF
+
+    chmod 644 "$LAUNCHD_PLIST"
+    chown root:wheel "$LAUNCHD_PLIST" 2>/dev/null || true
+
+    launchctl bootstrap system "$LAUNCHD_PLIST" >/dev/null 2>&1 \
+        || launchctl load -w "$LAUNCHD_PLIST" >/dev/null 2>&1 || true
+
+    # "Loaded" is not "will run", the same way "enabled" is not "will fire" on
+    # the other side. launchctl print says so plainly; on an older macOS that
+    # does not have it, list is a yes-or-no answer and that will do.
+    if launchctl print "system/$LAUNCHD_LABEL" >/dev/null 2>&1 \
+        || launchctl list "$LAUNCHD_LABEL" >/dev/null 2>&1; then
+        say "Scheduled with launchd. Check it with: sudo launchctl print system/$LAUNCHD_LABEL"
+    else
+        say "warning: the job did not load, so nothing is scheduled. Reporting once now."
+        say "         Try: sudo launchctl bootstrap system $LAUNCHD_PLIST"
+        REPORTED=0
+    fi
+elif command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
     cat > "$UNIT" <<UNITEOF
 [Unit]
 Description=Monitor agent

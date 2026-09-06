@@ -330,6 +330,8 @@ return [
     'device.install_title' => 'Én kommando pr. maskine',
     'device.linux' => 'Linux',
     'device.linux_needs' => 'kræver curl og root',
+    'device.macos' => 'macOS',
+    'device.macos_needs' => 'kræver sudo',
     'device.windows' => 'Windows',
     'device.windows_needs' => 'kræver en hævet PowerShell',
     'device.checksum' => 'SHA-256 af installationsscriptet:',

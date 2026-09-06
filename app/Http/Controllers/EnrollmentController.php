@@ -42,6 +42,7 @@ final class EnrollmentController extends Controller
             'baseUrl' => Scripts::baseUrl(),
             'checksums' => [
                 'linux' => Scripts::checksum('linux/install.sh'),
+                'macos' => Scripts::checksum('macos/install.sh'),
                 'windows' => Scripts::checksum('windows/install.ps1'),
             ],
         ]);

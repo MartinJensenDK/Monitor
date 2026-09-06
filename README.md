@@ -44,7 +44,7 @@ the inside knows — hardware, operating system, disk pressure, pending updates 
 which of them are security fixes, whether a restart is outstanding, installed
 software, running services, listening ports.
 
-One command installs it, on Linux or Windows. It listens on nothing, so there is
+One command installs it, on Linux, macOS or Windows. It listens on nothing, so there is
 no port to open and nothing to reach on the machine. Between reports it knocks
 on a small endpoint every few seconds to ask whether anything is waiting, which
 makes a queued command land in seconds and a machine going quiet noticeable in
@@ -150,7 +150,8 @@ app/Checks/      one class per monitor type, plus the protocol clients they
                  use — a DNS resolver, a TLS inspector, an RDAP/WHOIS reader
 app/Agent/       the machine side: enrolment, token checks, and Payload, which
                  is where everything a machine posts is made safe to store
-resources/agent/ the agent and its installer, for Linux and Windows
+resources/agent/ the agent and its installer: one POSIX pair for Linux and
+                 macOS, one PowerShell pair for Windows
 app/Scheduler/   the runner, the rollups, retention
 app/Install/     shared by the browser wizard and bin/install.php
 public/          the only folder the web server needs

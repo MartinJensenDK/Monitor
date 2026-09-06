@@ -18,12 +18,38 @@ use App\Core\Config;
  */
 final class Scripts
 {
-    /** @var array<string,array{file:string,type:string}> */
+    /**
+     * Linux and macOS are served the same two files under two names.
+     *
+     * One POSIX agent covers both -- it works out which it is on and reads the
+     * machine accordingly -- so there is nothing to copy and nothing to keep
+     * in step. The addresses are separate anyway, because a machine asking for
+     * "the macOS agent" and getting a path called linux is the kind of small
+     * confusion that costs somebody an afternoon.
+     *
+     * @var array<string,array{file:string,type:string}>
+     */
     private const FILES = [
         'linux/install.sh' => ['file' => 'install.sh', 'type' => 'text/x-shellscript'],
         'linux/agent.sh' => ['file' => 'agent.sh', 'type' => 'text/x-shellscript'],
+        'macos/install.sh' => ['file' => 'install.sh', 'type' => 'text/x-shellscript'],
+        'macos/agent.sh' => ['file' => 'agent.sh', 'type' => 'text/x-shellscript'],
         'windows/install.ps1' => ['file' => 'install.ps1', 'type' => 'text/plain'],
         'windows/agent.ps1' => ['file' => 'agent.ps1', 'type' => 'text/plain'],
+    ];
+
+    /** Which script a machine of each family is offered. */
+    private const AGENT_FOR = [
+        'windows' => 'windows/agent.ps1',
+        'macos' => 'macos/agent.sh',
+        'linux' => 'linux/agent.sh',
+    ];
+
+    /** And which installer, for the command somebody copies. */
+    public const INSTALLER_FOR = [
+        'windows' => 'windows/install.ps1',
+        'macos' => 'macos/install.sh',
+        'linux' => 'linux/install.sh',
     ];
 
     public static function exists(string $name): bool
@@ -79,7 +105,7 @@ final class Scripts
             return $cache[$platform];
         }
 
-        $name = $platform === 'windows' ? 'windows/agent.ps1' : 'linux/agent.sh';
+        $name = self::AGENT_FOR[$platform] ?? self::AGENT_FOR['linux'];
         $body = self::contents($name);
 
         if ($body !== null && preg_match('/AGENT_VERSION\s*=\s*"([0-9][0-9.]*)"/', $body, $m) === 1) {
@@ -105,8 +131,8 @@ final class Scripts
      */
     public static function manifest(string $osFamily): array
     {
-        $platform = $osFamily === 'windows' ? 'windows' : 'linux';
-        $name = $platform === 'windows' ? 'windows/agent.ps1' : 'linux/agent.sh';
+        $platform = isset(self::AGENT_FOR[$osFamily]) ? $osFamily : 'linux';
+        $name = self::AGENT_FOR[$platform];
 
         return [
             'version' => self::version($platform),

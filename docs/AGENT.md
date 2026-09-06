@@ -85,6 +85,13 @@ curl -fsSLO https://monitor.example.com/agent/linux/install.sh
 sudo sh install.sh --key mek_...
 ```
 
+**macOS** — needs `sudo`:
+
+```sh
+curl -fsSLO https://monitor.example.com/agent/macos/install.sh
+sudo sh install.sh --key mek_...
+```
+
 **Windows** — needs an elevated PowerShell:
 
 ```powershell
@@ -452,10 +459,50 @@ token buys the ability to post nonsense about one machine, and nothing else.
 Which machines a person can see follows the same group rules as monitors —
 one idea of sharing, so a new page cannot invent a second one.
 
-## One version, two agents
+## Three platforms, two agents
+
+Linux and macOS share one script. It works out which it woke up on from
+`uname -s` and reads the machine accordingly — `sysctl` and `vm_stat` and
+`launchctl` on one side, `/proc` and `systemctl` on the other — but everything
+around those readers is the same code: the logging, the outbox, the command
+loop, the two-lock consent, self-update. Those are the parts that have actually
+had bugs in them, and there is one copy of each to fix.
+
+The addresses are still separate — `/agent/macos/install.sh` and
+`/agent/linux/install.sh` serve the same file — because a machine asking for the
+macOS agent and being handed a path called linux is a small confusion that costs
+somebody an afternoon.
+
+What differs between the two, in full:
+
+| | Linux | macOS |
+|---|---|---|
+| Facts | `/proc`, DMI | `sysctl`, `ioreg`, `sw_vers` |
+| Metrics | `/proc/stat`, `/proc/meminfo` | `top`, `vm_stat`, `vm.swapusage` |
+| Disks | `df -T` | `df`, minus the volumes nobody can fill |
+| Updates | apt, dnf, zypper, apk, pacman | `softwareupdate` |
+| Software | dpkg, rpm, apk, pacman | Homebrew's Cellar, and `/Applications` |
+| Services | `systemctl` | `launchctl` |
+| Ports | `ss` | `lsof` |
+| Schedule | systemd timer, or cron | launchd, `StartInterval` |
+| Restart | `shutdown -r +1` | `shutdown -r +1` |
+
+A Mac is guessed to be a client. The hardware barely distinguishes the two —
+the same Mac mini sits under a desk and in a rack — so it guesses the common
+case and stops arguing the moment anybody moves it.
+
+Two things a Mac cannot answer. It has nowhere to read "a restart is owed", so
+`reboot_required` is always false rather than guessed; an update that needs a
+restart says so when it is installed. And Homebrew is read out of its Cellar
+directory rather than by running `brew`, which refuses to run as root at all —
+and this agent is root.
+
+---
+
+## One version, three platforms
 
 The Linux and Windows agents carry the same version number and are released
-together, so "this machine is on 1.6.0" means the same thing whichever one it
+together, so "this machine is on 1.7.0" means the same thing whichever one it
 is running. A fix to one is a release of both, even when the other needed
 nothing — otherwise the numbers drift and stop meaning anything, and this
 server ends up offering a version to a platform that never got it. Both check

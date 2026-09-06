@@ -28,11 +28,12 @@ set -eu
 LC_ALL=C
 export LC_ALL
 
-# The two agents carry one version between them and move together, so that
-# "this machine is on 1.6.0" means the same thing whichever it is running. A
+# One POSIX agent for Linux and macOS, and a PowerShell one for Windows.
+# They carry one version between them and move together, so that
+# "this machine is on 1.7.0" means the same thing whichever it is running. A
 # change to one is a release of both, even when the other needed nothing:
 # tools/check-agent.sh and check-agent.ps1 both refuse to pass if they differ.
-AGENT_VERSION="1.6.0"
+AGENT_VERSION="1.7.0"
 CONF="${MONITOR_CONF:-/etc/monitor-agent/agent.conf}"
 
 MONITOR_URL=""
@@ -306,7 +307,22 @@ ship_logs() {
 
 # ------------------------------------------------------------ what we are ---
 
+# Linux or macOS. One script covers both, and the split is deliberate: the
+# logging, the outbox, the command loop and self-update are identical on either
+# and are the parts that have actually had bugs in them, so there is one copy
+# of each to fix. What differs is a dozen readers, and every one of them says
+# which platform it is reading for.
+PLATFORM="linux"
+[ "$(uname -s 2>/dev/null)" = "Darwin" ] && PLATFORM="macos"
+
 read_os_release() {
+    if [ "$PLATFORM" = "macos" ]; then
+        OS_NAME="$(sw_vers -productName 2>/dev/null || echo macOS)"
+        OS_VERSION="$(sw_vers -productVersion 2>/dev/null || true)"
+        OS_ID="macos"
+        return 0
+    fi
+
     [ -r /etc/os-release ] || return 0
     # shellcheck disable=SC1091
     . /etc/os-release 2>/dev/null || return 0
@@ -334,6 +350,15 @@ dmi() { [ -r "/sys/class/dmi/id/$1" ] && cat "/sys/class/dmi/id/$1" 2>/dev/null 
 # It is a guess, and it is meant to be: whoever looks at the list can move a
 # machine to the other page, and from then on the guess stops arguing.
 guess_kind() {
+    if [ "$PLATFORM" = "macos" ]; then
+        # A Mac is somebody's computer far more often than it is a server, and
+        # the hardware barely distinguishes the two -- the same Mac mini sits
+        # under a desk and in a rack. So it guesses client and stops arguing
+        # the moment anybody moves it.
+        echo client
+        return
+    fi
+
     chassis="$(dmi chassis_type | tr -d ' ')"
     case "$chassis" in
         8|9|10|11|12|14|30|31|32) echo client; return ;;
@@ -360,6 +385,15 @@ guess_kind() {
 }
 
 primary_ip() {
+    if [ "$PLATFORM" = "macos" ]; then
+        iface="$(route -n get default 2>/dev/null | awk '/interface:/ { print $2; exit }')"
+        [ -n "$iface" ] && ipconfig getifaddr "$iface" 2>/dev/null && return 0
+        # No default route, or a machine on Wi-Fi only with the route table
+        # in an odd state: take the first address that is not the loopback.
+        ifconfig 2>/dev/null | awk '/inet /  && $2 != "127.0.0.1" { print $2; exit }'
+        return 0
+    fi
+
     if have ip; then
         ip route get 1.1.1.1 2>/dev/null | awk '/src/ { for (i = 1; i < NF; i++) if ($i == "src") { print $(i+1); exit } }'
     elif have hostname; then
@@ -367,33 +401,80 @@ primary_ip() {
     fi
 }
 
-system_json() {
+# The hardware facts, each read the way its platform keeps them. Set as
+# variables rather than inline, so system_json below stays one shape whichever
+# machine it is running on and the JSON cannot drift between the two.
+system_facts() {
+    if [ "$PLATFORM" = "macos" ]; then
+        # ComputerName is what the person called it and is what they will look
+        # for in a list; it can be unset or contain spaces, so hostname is
+        # there behind it.
+        hostname="$(scutil --get ComputerName 2>/dev/null || true)"
+        [ -n "$hostname" ] || hostname="$(hostname -s 2>/dev/null || uname -n)"
+        fqdn="$(hostname -f 2>/dev/null || printf '%s' "$hostname")"
+        cores="$(sysctl -n hw.ncpu 2>/dev/null || echo 1)"
+        cpu="$(sysctl -n machdep.cpu.brand_string 2>/dev/null || true)"
+        # Apple silicon does not carry a brand string, so the model of the
+        # machine is the closest true thing to say about its processor.
+        [ -n "$cpu" ] || cpu="$(sysctl -n hw.model 2>/dev/null || true)"
+        membytes="$(sysctl -n hw.memsize 2>/dev/null || echo 0)"
+        # kern.boottime reads "{ sec = 1757100000, usec = 0 } Sat Sep ...".
+        #
+        # Matched on the field being exactly "sec", because a regex looking for
+        # "sec = " finds usec just as happily -- and the machine then reports
+        # an uptime of about fifty years, or of the microsecond, depending on
+        # which way the match ran.
+        boot="$(sysctl -n kern.boottime 2>/dev/null \
+            | awk '{ for (i = 1; i <= NF; i++) if ($i == "sec") { v = $(i + 2); gsub(/[^0-9]/, "", v); print v; exit } }')"
+        uptime=0
+        case "${boot:-}" in
+            ''|*[!0-9]*) ;;
+            *) uptime=$(( $(date +%s) - boot )) ;;
+        esac
+        [ "$uptime" -lt 0 ] 2>/dev/null && uptime=0
+        manufacturer="Apple"
+        model="$(sysctl -n hw.model 2>/dev/null || true)"
+        # ioreg rather than system_profiler: the same answer, without the
+        # several seconds system_profiler takes to produce it.
+        serial="$(ioreg -rd1 -c IOPlatformExpertDevice 2>/dev/null \
+            | awk -F'"' '/IOPlatformSerialNumber/ { print $4; exit }')"
+        virt=""
+        return 0
+    fi
+
     hostname="$(hostname 2>/dev/null || cat /etc/hostname 2>/dev/null || uname -n)"
     fqdn="$(hostname -f 2>/dev/null || printf '%s' "$hostname")"
     cores="$(nproc 2>/dev/null || grep -c '^processor' /proc/cpuinfo 2>/dev/null || echo 1)"
     cpu="$(awk -F': ' '/^model name/ { print $2; exit }' /proc/cpuinfo 2>/dev/null || true)"
     [ -n "$cpu" ] || cpu="$(awk -F': ' '/^Model/ { print $2; exit }' /proc/cpuinfo 2>/dev/null || true)"
-    memkb="$(awk '/^MemTotal:/ { print $2; exit }' /proc/meminfo 2>/dev/null || echo 0)"
+    membytes=$(( $(awk '/^MemTotal:/ { print $2; exit }' /proc/meminfo 2>/dev/null || echo 0) * 1024 ))
     uptime="$(awk '{ printf "%d", $1; exit }' /proc/uptime 2>/dev/null || echo 0)"
+    manufacturer="$(dmi sys_vendor)"
+    model="$(dmi product_name)"
+    serial="$(dmi product_serial)"
     virt=""
     have systemd-detect-virt && virt="$(systemd-detect-virt 2>/dev/null || true)"
     [ "$virt" = "none" ] && virt=""
+}
+
+system_json() {
+    system_facts
 
     printf '"system":{'
     printf '"hostname":%s,' "$(jstr "$hostname")"
     printf '"fqdn":%s,' "$(jstr "$fqdn")"
     printf '"kind":%s,' "$(jstr "$(guess_kind)")"
-    printf '"os_family":"linux",'
+    printf '"os_family":"%s",' "$PLATFORM"
     printf '"os_name":%s,' "$(jstr "$OS_NAME")"
     printf '"os_version":%s,' "$(jstr "$OS_VERSION")"
     printf '"kernel":%s,' "$(jstr "$(uname -r)")"
     printf '"arch":%s,' "$(jstr "$(uname -m)")"
-    printf '"manufacturer":%s,' "$(jstr "$(dmi sys_vendor)")"
-    printf '"model":%s,' "$(jstr "$(dmi product_name)")"
-    printf '"serial":%s,' "$(jstr "$(dmi product_serial)")"
+    printf '"manufacturer":%s,' "$(jstr "$manufacturer")"
+    printf '"model":%s,' "$(jstr "$model")"
+    printf '"serial":%s,' "$(jstr "$serial")"
     printf '"cpu_model":%s,' "$(jstr "$cpu")"
     printf '"cpu_cores":%s,' "$(jnum "$cores")"
-    printf '"memory_bytes":%s,' "$(jnum "$((memkb * 1024))")"
+    printf '"memory_bytes":%s,' "$(jnum "$membytes")"
     printf '"virtualisation":%s,' "$(jstr "$virt")"
     printf '"primary_ip":%s,' "$(jstr "$(primary_ip)")"
     printf '"uptime_seconds":%s,' "$(jnum "$uptime")"
@@ -405,6 +486,17 @@ system_json() {
 
 # Processor time is a rate, not a reading, so it takes two looks a second apart.
 cpu_percent() {
+    if [ "$PLATFORM" = "macos" ]; then
+        # top takes the two looks itself. The first sample is since boot and
+        # is not a reading of now, so it is the second that is kept -- which
+        # is the same reason the Linux branch below sleeps between two.
+        top -l 2 -n 0 -s 1 2>/dev/null \
+        | awk '
+            /^CPU usage:/ { idle = $0; sub(/.*, /, "", idle); sub(/% idle.*/, "", idle); last = idle }
+            END { if (last == "") { print "null" } else { printf "%.2f", 100 - last } }'
+        return
+    fi
+
     [ -r /proc/stat ] || { printf 'null'; return; }
     set -- $(awk '/^cpu / { print $2, $3, $4, $5, $6, $7, $8; exit }' /proc/stat)
     idle1=$(( ${4:-0} + ${5:-0} ))
@@ -421,6 +513,11 @@ cpu_percent() {
 }
 
 metrics_json() {
+    if [ "$PLATFORM" = "macos" ]; then
+        macos_metrics_json
+        return
+    fi
+
     memtotal="$(awk '/^MemTotal:/ { print $2; exit }' /proc/meminfo 2>/dev/null || echo 0)"
     memavail="$(awk '/^MemAvailable:/ { print $2; exit }' /proc/meminfo 2>/dev/null || echo 0)"
     [ "$memavail" -eq 0 ] 2>/dev/null && memavail="$(awk '/^MemFree:/ { print $2; exit }' /proc/meminfo 2>/dev/null || echo 0)"
@@ -441,6 +538,55 @@ metrics_json() {
     printf '}'
 }
 
+# What macOS keeps instead of /proc.
+#
+# "Used" is deliberately everything that is not free, speculative or purely a
+# file cache: wired, active, compressed and the rest of it. That is the number
+# Activity Monitor calls memory used, and a machine's page should agree with
+# the machine.
+macos_metrics_json() {
+    membytes="$(sysctl -n hw.memsize 2>/dev/null || echo 0)"
+    pagesize="$(sysctl -n hw.pagesize 2>/dev/null || echo 4096)"
+
+    free_pages=0
+    inactive_pages=0
+    speculative_pages=0
+    if have vm_stat; then
+        set -- $(vm_stat 2>/dev/null | awk '
+            /^Pages free:/        { gsub(/\./, "", $3); f = $3 }
+            /^Pages inactive:/    { gsub(/\./, "", $3); i = $3 }
+            /^Pages speculative:/ { gsub(/\./, "", $3); s = $3 }
+            END { printf "%d %d %d", f + 0, i + 0, s + 0 }')
+        free_pages="${1:-0}"; inactive_pages="${2:-0}"; speculative_pages="${3:-0}"
+    fi
+    unused=$(( (free_pages + inactive_pages + speculative_pages) * pagesize ))
+    used=$(( membytes - unused ))
+    [ "$used" -lt 0 ] && used=0
+
+    # vm.swapusage reads "total = 2048.00M  used = 512.25M  free = 1535.75M"
+    swapused="$(sysctl -n vm.swapusage 2>/dev/null \
+        | awk '{ for (i = 1; i < NF; i++) if ($i == "used") { v = $(i+2); break }
+                 if (v == "") { print 0; exit }
+                 unit = substr(v, length(v)); sub(/[A-Za-z]$/, "", v)
+                 mult = (unit == "G") ? 1073741824 : (unit == "M") ? 1048576 : (unit == "K") ? 1024 : 1
+                 printf "%d", v * mult }')"
+
+    # vm.loadavg reads "{ 1.52 1.61 1.72 }"
+    set -- $(sysctl -n vm.loadavg 2>/dev/null | tr -d '{}')
+    procs="$(ps -A -o pid= 2>/dev/null | wc -l | tr -d ' ')"
+
+    printf '"metrics":{'
+    printf '"cpu_percent":%s,' "$(jnum "$(cpu_percent)")"
+    printf '"memory_used_bytes":%s,' "$(jnum "$used")"
+    printf '"memory_total_bytes":%s,' "$(jnum "$membytes")"
+    printf '"swap_used_bytes":%s,' "$(jnum "${swapused:-0}")"
+    printf '"load1":%s,' "$(jnum "${1:-0}")"
+    printf '"load5":%s,' "$(jnum "${2:-0}")"
+    printf '"load15":%s,' "$(jnum "${3:-0}")"
+    printf '"process_count":%s' "$(jnum "${procs:-0}")"
+    printf '}'
+}
+
 # ------------------------------------------------------------------- disks ---
 
 # df is run once, and its own header says what its columns are.
@@ -455,8 +601,14 @@ metrics_json() {
 disks_json() {
     printf '"disks":['
 
-    df -P -T -k > "$WORK/df" 2>/dev/null || true
-    [ -s "$WORK/df" ] || df -P -k > "$WORK/df" 2>/dev/null || true
+    # macOS df has no -T at all, so there is nothing to try and fail at; the
+    # header-driven reader below already copes with the column not being there.
+    if [ "$PLATFORM" = "macos" ]; then
+        df -P -k > "$WORK/df" 2>/dev/null || true
+    else
+        df -P -T -k > "$WORK/df" 2>/dev/null || true
+        [ -s "$WORK/df" ] || df -P -k > "$WORK/df" 2>/dev/null || true
+    fi
 
     if [ -s "$WORK/df" ]; then
         awk "
@@ -474,6 +626,11 @@ disks_json() {
                 if (mount == \"\" || total + 0 <= 0) next
                 if (fs ~ /^(tmpfs|devtmpfs|squashfs|overlay|proc|sysfs|cgroup|cgroup2|ramfs|efivarfs|autofs|fuse.gvfsd-fuse|fuse.portal|nsfs|tracefs|debugfs)\$/) next
                 if (mount ~ /^\/(proc|sys|dev|run)(\/|\$)/) next
+                # macOS mounts a read-only system volume, a dozen firmlinks
+                # and every Time Machine snapshot. None of them is a disk
+                # somebody can run out of space on.
+                if (mount ~ /^\/System\/Volumes\/(VM|Preboot|Update|xarts|iSCPreboot|Hardware|Recovery)/) next
+                if (src ~ /^(map |devfs|com\.apple\.TimeMachine)/) next
                 if (seen[mount]++) next
                 if (n++) printf \",\"
                 printf \"{\\\"mount\\\":\\\"%s\\\",\\\"source\\\":\\\"%s\\\",\\\"filesystem\\\":\\\"%s\\\",\\\"total_bytes\\\":%d,\\\"used_bytes\\\":%d}\",
@@ -488,6 +645,15 @@ disks_json() {
 # ----------------------------------------------------------------- updates ---
 
 reboot_required() {
+    # macOS has nothing to read here. It does not track "a restart is owed"
+    # anywhere a script can see; an update that needs one says so when it is
+    # installed, and that is reported as the outcome of the command that
+    # installed it. Guessing would be worse than saying nothing.
+    if [ "$PLATFORM" = "macos" ]; then
+        echo false
+        return
+    fi
+
     [ -f /var/run/reboot-required ] && { echo true; return; }
     [ -f /run/reboot-required ] && { echo true; return; }
     if have needs-restarting; then
@@ -502,6 +668,38 @@ reboot_required() {
 # Each package manager gets its own reader. They all emit the same JSON objects,
 # so whatever this machine happens to run, the site sees one shape.
 updates_items() {
+    if [ "$PLATFORM" = "macos" ]; then
+        # softwareupdate prints a stanza per update:
+        #
+        #   * Label: macOS Sequoia 15.6.1-24G90
+        #   \tTitle: macOS Sequoia, Version: 15.6.1, Size: 6799781KiB, ...
+        #
+        # The Title line carries everything worth keeping. Apple does not mark
+        # security updates as such in this output, so the only honest signal is
+        # the name itself.
+        LC_ALL=C softwareupdate -l 2>/dev/null \
+        | awk "
+            $AWK_ESC
+            /^[[:space:]]*Title:/ {
+                line = \$0
+                title = line
+                sub(/^[[:space:]]*Title:[[:space:]]*/, \"\", title)
+                sub(/,[[:space:]]*Version:.*\$/, \"\", title)
+                version = \"\"
+                if (match(line, /Version:[[:space:]]*[^,]*/)) {
+                    version = substr(line, RSTART, RLENGTH)
+                    sub(/^Version:[[:space:]]*/, \"\", version)
+                }
+                sec = (tolower(line) ~ /security|rapid security/) ? \"true\" : \"false\"
+                if (title == \"\") next
+                if (n++) printf \",\"
+                printf \"{\\\"name\\\":\\\"%s\\\",\\\"current_version\\\":\\\"\\\",\\\"available_version\\\":\\\"%s\\\",\\\"source\\\":\\\"softwareupdate\\\",\\\"is_security\\\":%s}\",
+                    esc(title), esc(version), sec
+            }
+        "
+        return
+    fi
+
     if have apt-get && [ -f /etc/debian_version ]; then
         LC_ALL=C apt-get -s -o Debug::NoLocking=true upgrade 2>/dev/null \
         | awk "
@@ -592,6 +790,14 @@ updates_items() {
 # it appears. -q only drops the progress bars, which are meaningless without a
 # terminal to redraw.
 refresh_lists() {
+    # softwareupdate -l is the round trip: it asks Apple what this machine can
+    # have. There is no separate index to refresh, so the check and the refresh
+    # are the same command -- which is why its output is worth streaming.
+    if [ "$PLATFORM" = "macos" ]; then
+        softwareupdate -l 2>&1
+        return $?
+    fi
+
     if have apt-get; then apt-get -q update
     elif have dnf; then dnf -q makecache
     elif have zypper; then zypper --non-interactive refresh
@@ -632,6 +838,12 @@ updates_json() {
 
 packages_json() {
     printf '"packages":['
+    if [ "$PLATFORM" = "macos" ]; then
+        macos_packages
+        printf ']'
+        return
+    fi
+
     if have dpkg-query; then
         LC_ALL=C dpkg-query -W -f='${Package}\t${Version}\t${Maintainer}\n' 2>/dev/null \
         | awk -F'\t' "$AWK_ESC"' $1 != "" { if (n++) printf ","; printf "{\"name\":\"%s\",\"version\":\"%s\",\"publisher\":\"%s\",\"source\":\"dpkg\"}", esc($1), esc($2), esc($3) }'
@@ -648,10 +860,68 @@ packages_json() {
     printf ']'
 }
 
+# What a Mac has installed: the applications, and Homebrew if it is there.
+#
+# Homebrew is read out of its Cellar rather than by running brew, which refuses
+# to run as root at all -- and this agent is root. The directory layout is the
+# same information and needs no permission.
+#
+# system_profiler would list the applications with their versions in one call,
+# and takes the better part of a minute to do it. Reading each Info.plist is
+# less elegant and finishes while somebody is still looking at the page.
+macos_packages() {
+    n=0
+    for prefix in /opt/homebrew /usr/local; do
+        [ -d "$prefix/Cellar" ] || continue
+        for formula in "$prefix"/Cellar/*/*; do
+            [ -d "$formula" ] || continue
+            version="$(basename "$formula")"
+            name="$(basename "$(dirname "$formula")")"
+            [ "$n" -eq 0 ] || printf ','
+            printf '{"name":%s,"version":%s,"publisher":"Homebrew","source":"brew"}' \
+                "$(jstr "$name")" "$(jstr "$version")"
+            n=$(( n + 1 ))
+        done
+    done
+
+    for app in /Applications/*.app /Applications/Utilities/*.app /System/Applications/*.app; do
+        [ -d "$app" ] || continue
+        name="$(basename "$app" .app)"
+        version=""
+        if have defaults; then
+            version="$(defaults read "$app/Contents/Info" CFBundleShortVersionString 2>/dev/null || true)"
+        fi
+        publisher="$(printf '%s' "$app" | grep -q '^/System/' && printf 'Apple' || printf '')"
+        [ "$n" -eq 0 ] || printf ','
+        printf '{"name":%s,"version":%s,"publisher":%s,"source":"applications"}' \
+            "$(jstr "$name")" "$(jstr "$version")" "$(jstr "$publisher")"
+        n=$(( n + 1 ))
+    done
+}
+
 # ---------------------------------------------------------------- services ---
 
 services_json() {
     printf '"services":['
+    if [ "$PLATFORM" = "macos" ]; then
+        # launchctl list gives "PID Status Label". A dash for the PID means it
+        # is loaded but not running, which is most of them: launchd starts a
+        # daemon when something asks for it.
+        LC_ALL=C launchctl list 2>/dev/null \
+        | awk "
+            $AWK_ESC
+            NR == 1 { next }
+            NF >= 3 {
+                state = (\$1 ~ /^[0-9]+\$/) ? \"running\" : \"stopped\"
+                if (n++) printf \",\"
+                printf \"{\\\"name\\\":\\\"%s\\\",\\\"display_name\\\":\\\"\\\",\\\"state\\\":\\\"%s\\\",\\\"startup\\\":\\\"launchd\\\"}\",
+                    esc(\$3), state
+            }
+        "
+        printf ']'
+        return
+    fi
+
     if have systemctl; then
         LC_ALL=C systemctl list-units --type=service --all --no-legend --plain --no-pager 2>/dev/null \
         | awk "$AWK_ESC"'
@@ -671,6 +941,37 @@ services_json() {
 
 ports_json() {
     printf '"ports":['
+    if [ "$PLATFORM" = "macos" ]; then
+        # There is no ss on macOS. lsof is there by default and says which
+        # process holds the socket, which netstat -an does not.
+        {
+            LC_ALL=C lsof -nP -iTCP -sTCP:LISTEN 2>/dev/null
+            LC_ALL=C lsof -nP -iUDP 2>/dev/null
+        } | awk "
+            $AWK_ESC
+            NR > 0 && \$1 != \"COMMAND\" && NF >= 9 {
+                proto = tolower(\$8)
+                if (proto != \"tcp\" && proto != \"udp\") next
+                where = \$9
+                # ...->... is an established connection, not something listening.
+                if (where ~ /->/) next
+                port = where
+                sub(/^.*:/, \"\", port)
+                if (port !~ /^[0-9]+\$/) next
+                addr = where
+                sub(/:[^:]*\$/, \"\", addr)
+                if (addr == \"*\") addr = \"0.0.0.0\"
+                key = proto \":\" addr \":\" port
+                if (seen[key]++) next
+                if (n++) printf \",\"
+                printf \"{\\\"protocol\\\":\\\"%s\\\",\\\"address\\\":\\\"%s\\\",\\\"port\\\":%d,\\\"process\\\":\\\"%s\\\"}\",
+                    esc(proto), esc(addr), port, esc(\$1)
+            }
+        "
+        printf ']'
+        return
+    fi
+
     if have ss; then
         LC_ALL=C ss -H -tulnp 2>/dev/null \
         | awk "$AWK_ESC"'
@@ -746,6 +1047,13 @@ run_command() {
             ;;
         install_updates)
             allows updates || { echo "This machine was installed without --allow-updates." >&2; return 77; }
+            if [ "$PLATFORM" = "macos" ]; then
+                # --restart is deliberately not passed. A restart is a separate
+                # permission on this machine, and softwareupdate taking one on
+                # its own would go around it.
+                softwareupdate -i -a 2>&1 | tail -n 40
+                return $?
+            fi
             if have apt-get; then
                 DEBIAN_FRONTEND=noninteractive apt-get -qq update >/dev/null 2>&1 || true
                 DEBIAN_FRONTEND=noninteractive apt-get -y -qq -o Dpkg::Options::=--force-confold upgrade 2>&1 | tail -n 40
@@ -761,8 +1069,13 @@ run_command() {
             allows reboot || { echo "This machine was installed without --allow-reboot." >&2; return 77; }
             # A minute's grace, so this report can finish and the reason is in
             # the machine's own logs before it goes.
-            shutdown -r +1 "Restart requested from Monitor" >/dev/null 2>&1 \
-                || { have systemctl && systemctl reboot; }
+            if [ "$PLATFORM" = "macos" ]; then
+                # macOS shutdown takes minutes, not "+1", and has no message.
+                shutdown -r +1 >/dev/null 2>&1 || return 1
+            else
+                shutdown -r +1 "Restart requested from Monitor" >/dev/null 2>&1 \
+                    || { have systemctl && systemctl reboot; }
+            fi
             echo "Restarting in one minute."
             return 0
             ;;
@@ -849,7 +1162,7 @@ self_update() {
 
     [ -n "$MONITOR_STATE" ] && date +%s > "$MONITOR_STATE/updated-at" 2>/dev/null || true
 
-    source="${MONITOR_URL%/}/agent/linux/install.sh"
+    source="${MONITOR_URL%/}/agent/$PLATFORM/install.sh"
     installer="$WORK/install.sh"
 
     log info "$reason Fetching $source"
@@ -1046,8 +1359,28 @@ scheduler_cadence() {
     fi
 }
 
+LAUNCHD_LABEL="dk.monitor.agent"
+LAUNCHD_PLIST="/Library/LaunchDaemons/$LAUNCHD_LABEL.plist"
+
 apply_schedule() {
     seconds="$1"
+
+    # launchd has no equivalent of "reload with a new interval": the plist is
+    # the schedule, so it is rewritten and the job put back. bootout then
+    # bootstrap rather than kickstart -- StartInterval is read when the job is
+    # loaded, and a running job would keep the old one.
+    if [ "$PLATFORM" = "macos" ] && [ -f "$LAUNCHD_PLIST" ]; then
+        tmp="$WORK/plist"
+        # Only the integer on the line after StartInterval, so a plist that
+        # grows another number later does not get this one written into it.
+        sed "/<key>StartInterval<\/key>/{n;s|<integer>[0-9]*</integer>|<integer>${seconds}</integer>|;}" \
+            "$LAUNCHD_PLIST" > "$tmp" || return 0
+        cat "$tmp" > "$LAUNCHD_PLIST" 2>/dev/null || return 0
+        launchctl bootout "system/$LAUNCHD_LABEL" >/dev/null 2>&1 || true
+        launchctl bootstrap system "$LAUNCHD_PLIST" >/dev/null 2>&1 \
+            || launchctl load -w "$LAUNCHD_PLIST" >/dev/null 2>&1 || true
+        return 0
+    fi
 
     if [ -f /etc/systemd/system/monitor-agent.timer ] && have systemctl; then
         # Restarting a timer is only safe because the unit carries an

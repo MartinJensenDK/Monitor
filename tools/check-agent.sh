@@ -1,6 +1,6 @@
 #!/bin/sh
-# Checks the Linux agent and its installer without a Linux machine to install
-# them on.
+# Checks the POSIX agent and its installer -- the Linux half on this machine,
+# the macOS half against stub commands that answer the way a Mac does.
 #
 #   sh tools/check-agent.sh
 #
@@ -648,7 +648,7 @@ fi
 echo
 echo 'The two agents move together'
 
-# One version between them, so "this machine is on 1.6.0" means the same thing
+# One version between them, so "this machine is on 1.7.0" means the same thing
 # whichever agent it is running. A fix to one is a release of both, even when
 # the other needed nothing -- otherwise the numbers drift and stop meaning
 # anything, and Monitor offers a version to a platform that never got it.
@@ -699,6 +699,290 @@ else
 fi
 
 echo
+# ------------------------------------------------ 6. the macOS half of it ---
+#
+# One agent covers Linux and macOS, and only one of them can be run here. So
+# macOS is given a set of stub commands that answer the way a Mac does, and
+# every reader that has a macOS branch is run against them. The output of
+# sysctl, vm_stat, df, launchctl, lsof and softwareupdate is copied from a real
+# machine; what is being checked is this agent's reading of it.
+#
+# It is not a Mac, and it cannot be. It is the difference between code nobody
+# has ever run and code whose parsing is known to work.
+
+echo
+echo 'The macOS readers, against what a Mac answers'
+
+MAC="$WORK/macbin"
+mkdir -p "$MAC"
+
+cat > "$MAC/uname" <<'MACEOF'
+#!/bin/sh
+case "${1:-}" in
+    -s) echo Darwin ;; -r) echo 24.6.0 ;; -m) echo arm64 ;; -n) echo mac ;; *) echo Darwin ;;
+esac
+MACEOF
+
+cat > "$MAC/sw_vers" <<'MACEOF'
+#!/bin/sh
+case "${1:-}" in
+    -productName) echo macOS ;;
+    -productVersion) echo 15.6.1 ;;
+esac
+MACEOF
+
+cat > "$MAC/scutil" <<'MACEOF'
+#!/bin/sh
+[ "$1 $2" = "--get ComputerName" ] && echo "Martins MacBook Pro"
+MACEOF
+
+cat > "$MAC/hostname" <<'MACEOF'
+#!/bin/sh
+case "${1:-}" in -f) echo mac.local ;; *) echo mac ;; esac
+MACEOF
+
+# One boot day ago, so the uptime has a value worth being wrong about.
+MAC_BOOT=$(( $(date +%s) - 93784 ))
+cat > "$MAC/sysctl" <<MACEOF
+#!/bin/sh
+case "\$2" in
+    hw.ncpu) echo 12 ;;
+    machdep.cpu.brand_string) exit 1 ;;
+    hw.model) echo Mac15,6 ;;
+    hw.memsize) echo 38654705664 ;;
+    hw.pagesize) echo 16384 ;;
+    kern.boottime) echo '{ sec = $MAC_BOOT, usec = 123456 } Fri Sep  5 12:00:00 2026' ;;
+    vm.swapusage) echo 'total = 2048.00M  used = 512.25M  free = 1535.75M  (encrypted)' ;;
+    vm.loadavg) echo '{ 2.31 1.98 1.75 }' ;;
+    *) exit 1 ;;
+esac
+MACEOF
+
+cat > "$MAC/ioreg" <<'MACEOF'
+#!/bin/sh
+echo '    "IOPlatformSerialNumber" = "C02XY1234ABC"'
+MACEOF
+
+cat > "$MAC/vm_stat" <<'MACEOF'
+#!/bin/sh
+echo "Mach Virtual Memory Statistics: (page size of 16384 bytes)"
+echo "Pages free:                              120000."
+echo "Pages active:                            900000."
+echo "Pages inactive:                          300000."
+echo "Pages speculative:                        40000."
+MACEOF
+
+cat > "$MAC/top" <<'MACEOF'
+#!/bin/sh
+echo "CPU usage: 5.12% user, 3.44% sys, 91.44% idle"
+echo "CPU usage: 12.50% user, 7.25% sys, 80.25% idle"
+MACEOF
+
+cat > "$MAC/df" <<'MACEOF'
+#!/bin/sh
+echo "Filesystem   1024-blocks       Used  Available Capacity  Mounted on"
+echo "/dev/disk3s1s1 971350180  9838364  515832936     2%    /"
+echo "devfs                 197        197          0   100%    /dev"
+echo "/dev/disk3s6   971350180        24  515832936     1%    /System/Volumes/VM"
+echo "/dev/disk3s2   971350180  10465648  515832936     3%    /System/Volumes/Data"
+echo "map auto_home           0          0          0   100%    /System/Volumes/Data/home"
+echo "/dev/disk5s1     4096000    3200000     896000    79%    /Volumes/Time Machine Backups"
+MACEOF
+
+cat > "$MAC/launchctl" <<'MACEOF'
+#!/bin/sh
+[ "$1" = "list" ] || exit 0
+printf '%s\t%s\t%s\n' PID Status Label
+printf '%s\t%s\t%s\n' 1 0 com.apple.launchd
+printf '%s\t%s\t%s\n' - 0 com.apple.mdworker.shared
+printf '%s\t%s\t%s\n' 412 0 dk.monitor.agent
+MACEOF
+
+cat > "$MAC/lsof" <<'MACEOF'
+#!/bin/sh
+case "$*" in
+  *iTCP*)
+    echo "COMMAND     PID   USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME"
+    echo "launchd       1   root   28u  IPv6 0x1234567890abcdef      0t0  TCP *:22 (LISTEN)"
+    echo "Google      998 martin   45u  IPv4 0x1234567890abcded      0t0  TCP 192.168.1.20:52344->142.250.74.14:443 (ESTABLISHED)"
+    ;;
+  *iUDP*)
+    echo "COMMAND     PID   USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME"
+    echo "mDNSRespo   201 _mdns    7u  IPv4 0x1234567890abcdec      0t0  UDP *:5353"
+    ;;
+esac
+MACEOF
+
+cat > "$MAC/softwareupdate" <<'MACEOF'
+#!/bin/sh
+echo "Software Update Tool"
+echo "Software Update found the following new or updated software:"
+echo "* Label: Safari18.6.1MontereyAuto-18.6.1"
+printf '\tTitle: Safari, Version: 18.6.1, Size: 132459KiB, Recommended: YES, \n'
+echo "* Label: Security Response 15.6.1(a)"
+printf '\tTitle: Rapid Security Response, Version: 15.6.1a, Size: 380000KiB, Recommended: YES, \n'
+MACEOF
+
+cat > "$MAC/route" <<'MACEOF'
+#!/bin/sh
+echo "  interface: en0"
+MACEOF
+
+cat > "$MAC/ipconfig" <<'MACEOF'
+#!/bin/sh
+[ "$1" = "getifaddr" ] && echo "192.168.1.20"
+MACEOF
+
+chmod +x "$MAC"/*
+
+# Like agent_case, but with a Mac in front of it on the PATH. The stub is
+# re-cut from the agent each time because PLATFORM is settled while the script
+# is being read, not when a reader is called.
+mac_case() {
+    rm -rf "$WORK/state" "$WORK/agent.log"
+    {
+        cat "$AGENT_STUB"
+        echo 'set +e'
+        echo 'log_setup'
+        cat
+    } > "$WORK/mac-case.sh"
+    PATH="$MAC:$PATH" MONITOR_CONF="$WORK/agent.conf" MONITOR_LOG="$WORK/agent.log" \
+        MONITOR_STATE="$WORK/state" sh "$WORK/mac-case.sh" 2>&1
+}
+
+got=$(mac_case <<'CASEEOF'
+printf '%s' "$PLATFORM"
+CASEEOF
+)
+if [ "$got" = "macos" ]; then
+    ok 'uname -s of Darwin is read as macos'
+else
+    bad 'uname -s of Darwin is read as macos' 'macos' "$got"
+fi
+
+got=$(mac_case <<'CASEEOF'
+system_json
+CASEEOF
+)
+case "$got" in
+    *'"os_family":"macos"'*'"manufacturer":"Apple"'*'"model":"Mac15,6"'*'"serial":"C02XY1234ABC"'*'"cpu_cores":12'*'"memory_bytes":38654705664'*)
+        ok 'the hardware facts come out of sysctl and ioreg' ;;
+    *) bad 'the hardware facts come out of sysctl and ioreg' 'Apple, Mac15,6, the serial, 12 cores, 36 GiB' "$got" ;;
+esac
+
+# The one that was wrong first time: a regex looking for "sec = " finds usec
+# just as happily, and the machine then reports an uptime of the microsecond.
+got=$(mac_case <<'CASEEOF'
+system_json | sed -n 's/.*"uptime_seconds":\([0-9]*\).*/\1/p'
+CASEEOF
+)
+if [ "${got:-0}" -gt 93000 ] && [ "${got:-0}" -lt 95000 ]; then
+    ok 'kern.boottime is read as sec, not usec'
+else
+    bad 'kern.boottime is read as sec, not usec' 'about 93784' "$got"
+fi
+
+got=$(mac_case <<'CASEEOF'
+metrics_json
+CASEEOF
+)
+case "$got" in
+    *'"memory_total_bytes":38654705664'*'"swap_used_bytes":537133056'*'"load1":2.31'*)
+        ok 'vm_stat, vm.swapusage and vm.loadavg are read' ;;
+    *) bad 'vm_stat, vm.swapusage and vm.loadavg are read' '36 GiB total, 512.25M swap, load 2.31' "$got" ;;
+esac
+
+# top's first sample is since boot, so it is the second that is the reading.
+got=$(mac_case <<'CASEEOF'
+printf '%s' "$(cpu_percent)"
+CASEEOF
+)
+if [ "$got" = "19.75" ]; then
+    ok 'cpu is taken from the second top sample, not the first'
+else
+    bad 'cpu is taken from the second top sample, not the first' '19.75' "$got"
+fi
+
+got=$(mac_case <<'CASEEOF'
+disks_json
+CASEEOF
+)
+case "$got" in
+    *devfs*|*auto_home*|*'/System/Volumes/VM'*)
+        bad 'the volumes nobody can fill are left out' 'no devfs, no map, no VM volume' "$got" ;;
+    *'"mount":"/"'*'"mount":"/System/Volumes/Data"'*'"mount":"/Volumes/Time Machine Backups"'*)
+        ok 'the volumes nobody can fill are left out' ;;
+    *) bad 'the volumes nobody can fill are left out' 'the root, Data and the external volume' "$got" ;;
+esac
+
+got=$(mac_case <<'CASEEOF'
+updates_json
+CASEEOF
+)
+case "$got" in
+    *'"name":"Safari","current_version":"","available_version":"18.6.1"'*'"name":"Rapid Security Response"'*'"is_security":true'*)
+        ok 'softwareupdate stanzas become updates, and a security one is marked' ;;
+    *) bad 'softwareupdate stanzas become updates, and a security one is marked' 'Safari 18.6.1 and a security update' "$got" ;;
+esac
+
+got=$(mac_case <<'CASEEOF'
+services_json
+CASEEOF
+)
+case "$got" in
+    *'"name":"com.apple.launchd","display_name":"","state":"running"'*'"name":"com.apple.mdworker.shared","display_name":"","state":"stopped"'*)
+        ok 'launchctl list is read, and a dash for a PID means stopped' ;;
+    *) bad 'launchctl list is read, and a dash for a PID means stopped' 'launchd running, mdworker stopped' "$got" ;;
+esac
+
+got=$(mac_case <<'CASEEOF'
+ports_json
+CASEEOF
+)
+case "$got" in
+    *52344*|*142.250*)
+        bad 'lsof gives the listeners, and established sockets are not among them' 'no outbound connection' "$got" ;;
+    *'"protocol":"tcp","address":"0.0.0.0","port":22,"process":"launchd"'*'"protocol":"udp","address":"0.0.0.0","port":5353'*)
+        ok 'lsof gives the listeners, and established sockets are not among them' ;;
+    *) bad 'lsof gives the listeners, and established sockets are not among them' 'tcp/22 and udp/5353' "$got" ;;
+esac
+
+got=$(mac_case <<'CASEEOF'
+MONITOR_COLLECT="disks,updates,services,ports"
+build_report ""
+printf 'exit=%s ' "$?"
+cat "$WORK/report.json"
+CASEEOF
+)
+case "$got" in
+    'exit=0 {'*'"os_family":"macos"'*'}')
+        ok 'and the whole report is built and is whole' ;;
+    *) bad 'and the whole report is built and is whole' 'a complete macOS document, exit 0' "$(printf '%s' "$got" | cut -c 1-160)" ;;
+esac
+
+got=$(mac_case <<'CASEEOF'
+MONITOR_ALLOW="updates"
+run_command refresh_updates 2>&1 | tail -n 1
+CASEEOF
+)
+case "$got" in
+    *'2 update(s) waiting, 1 of them security'*)
+        ok 'Check for updates asks softwareupdate and counts what came back' ;;
+    *) bad 'Check for updates asks softwareupdate and counts what came back' '2 waiting, 1 security' "$got" ;;
+esac
+
+got=$(mac_case <<'CASEEOF'
+MONITOR_ALLOW=""
+run_command reboot 2>&1
+printf 'exit=%s' "$?"
+CASEEOF
+)
+case "$got" in
+    *'without --allow-reboot'*exit=77) ok 'and a Mac refuses a restart it was not installed to allow' ;;
+    *) bad 'and a Mac refuses a restart it was not installed to allow' 'the refusal and exit 77' "$got" ;;
+esac
+
+
 echo 'Each script recognises the other'
 
 # Both directions of a download are sanity-checked against a couple of strings

@@ -21,6 +21,11 @@ $linux = sprintf(
     $baseUrl,
     $example
 );
+$macos = sprintf(
+    "curl -fsSLO %s/agent/macos/install.sh\nsudo sh install.sh --key %s",
+    $baseUrl,
+    $example
+);
 $windows = sprintf(
     "irm %s/agent/windows/install.ps1 -OutFile install.ps1\n.\\install.ps1 -Key %s",
     $baseUrl,
@@ -75,6 +80,21 @@ $windows = sprintf(
                 <p class="field__hint">
                     <?= e(t('device.checksum')) ?>
                     <code class="num"><?= e($checksums['linux']) ?></code>
+                </p>
+            </div>
+
+            <div class="install">
+                <div class="install__head">
+                    <h3><?= e(t('device.macos')) ?></h3>
+                    <span class="muted"><?= e(t('device.macos_needs')) ?></span>
+                </div>
+                <div class="copyline copyline--block">
+                    <pre class="copyline__text"><?= e($macos) ?></pre>
+                    <button class="btn btn--sm" type="button" data-copy="<?= e($macos) ?>"><?= icon('link') ?><?= e(t('action.copy')) ?></button>
+                </div>
+                <p class="field__hint">
+                    <?= e(t('device.checksum')) ?>
+                    <code class="num"><?= e($checksums['macos']) ?></code>
                 </p>
             </div>
 
