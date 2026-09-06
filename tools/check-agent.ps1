@@ -515,7 +515,7 @@ Check 'every setting survives enrolment' ($dropped -join ',') ''
 ''
 '-- the two agents move together --'
 #
-# One version between them, so "this machine is on 1.7.0" means the same thing
+# One version between them, so "this machine is on 1.8.0" means the same thing
 # whichever agent it is running. A fix to one is a release of both, even when
 # the other needed nothing -- otherwise the numbers drift and stop meaning
 # anything, and Monitor offers a version to a platform that never got it.
@@ -672,6 +672,49 @@ foreach ($file in $scripts) {
         'PASS  {0,-48} {1} parameter(s) left alone' -f $leaf, $parameters.Count
     }
 }
+
+# --------------------------------- 7. every list in the report stays a list ---
+#
+# PowerShell unrolls a collection on the way out of a function. A list built in
+# Get-Disks and returned comes back as the hashtable itself when it holds one
+# entry, and as $null when it holds none -- and the encoder writes those as
+# {...} and null, where the server is reading an array. It finds no rows in an
+# object, stores none, and the machine's page shows no disks while "collected"
+# still says they were gathered.
+#
+# It shipped, and it survived four versions, because it only bites a list with
+# exactly one entry: a laptop has one fixed disk and several hundred services.
+#
+# So each list is wrapped in @() at the point it goes into the report, and this
+# checks that none of them has lost it.
+$listsInReport = @('disks', 'packages', 'services', 'ports')
+
+''
+'-- every list in the report is still a list --'
+
+$agentText = Get-Content -LiteralPath (Join-Path $root 'resources/agent/agent.ps1') -Raw
+
+foreach ($list in $listsInReport) {
+    $pattern = [regex]::Escape("`$report['$list'] = ") + '@\('
+    if ($agentText -match $pattern) {
+        Check "$list is wrapped in @()" 'wrapped' 'wrapped'
+    } else {
+        Check "$list is wrapped in @()" 'bare, so one entry becomes an object' 'wrapped'
+    }
+}
+
+if ($agentText -match 'items\s+=\s+@\(\$updates\)') {
+    Check 'and so are the update items' 'wrapped' 'wrapped'
+} else {
+    Check 'and so are the update items' 'bare, so one update becomes an object' 'wrapped'
+}
+
+# And the reason it matters, demonstrated rather than asserted: the encoder is
+# the one that has to tell an object from an array, and it decides on type.
+$oneDisk = @([ordered]@{ mount = 'C:'; total_bytes = 500 })
+$unrolled = $oneDisk | ForEach-Object { $_ }      # what a bare return does
+Check 'one entry unwrapped encodes as an object' (ConvertTo-MonitorJson $unrolled).Substring(0, 1) '{'
+Check 'and wrapped in @() encodes as an array' (ConvertTo-MonitorJson @($unrolled)).Substring(0, 1) '['
 
 ''
 if ($failures -eq 0) { 'Everything checked here passes.' } else { "$failures FAILED" }

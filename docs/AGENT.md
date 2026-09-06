@@ -502,7 +502,7 @@ and this agent is root.
 ## One version, three platforms
 
 The Linux and Windows agents carry the same version number and are released
-together, so "this machine is on 1.7.0" means the same thing whichever one it
+together, so "this machine is on 1.8.0" means the same thing whichever one it
 is running. A fix to one is a release of both, even when the other needed
 nothing — otherwise the numbers drift and stop meaning anything, and this
 server ends up offering a version to a platform that never got it. Both check
@@ -528,7 +528,7 @@ Only `2` makes the installer enrol again. Treating any non-zero exit as a dead
 token spends a use of an enrolment key and leaves a second row for the same
 computer, which is the one thing running the installer twice must never do.
 
-## The one PowerShell trap that keeps happening
+## The PowerShell traps that keep happening
 
 PowerShell variable names are case-insensitive, so `$poll` inside a script **is**
 the `-Poll` parameter declared at the top of it. Assigning to one is either a
@@ -542,8 +542,20 @@ only way the scheduled task ever starts it — so the live channel had never onc
 worked on Windows, while the installer's own `-Once` check went on succeeding
 and hid it for four versions.
 
+There is a second one of the same character, and it also shipped. PowerShell
+unrolls a collection on the way out of a function, so a list built in
+`Get-Disks` and returned comes back as the hashtable itself when it holds one
+entry — and the encoder, which tests `IDictionary` before `IEnumerable`, writes
+`"disks":{...}` where the server is reading an array. The server finds no rows
+in an object and stores none, while `collected` still says disks were gathered,
+so the machine's page shows no disks and nothing anywhere says why. A laptop
+has one fixed disk and several hundred services, which is exactly why disks
+were the only list it touched. Every list going into the report is wrapped in
+`@()` for this reason.
+
 `tools/check-agent.ps1` now walks both param blocks and every assignment in both
-files and refuses to pass if one shadows the other. The installer deliberately
+files and refuses to pass if one shadows the other, and checks that no list has
+lost its `@()`. The installer deliberately
 reassigns four of its own parameters, resolving "asked for, then already here,
 then the default"; those four are named in the check so the rule can be absolute
 everywhere else.

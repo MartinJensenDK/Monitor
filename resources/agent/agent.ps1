@@ -40,10 +40,10 @@ $ErrorActionPreference = 'Stop'
 
 # One POSIX agent for Linux and macOS, and this one for Windows. They carry
 # one version between them and move together, so that
-# "this machine is on 1.7.0" means the same thing whichever it is running.
+# "this machine is on 1.8.0" means the same thing whichever it is running.
 # A change to one is a release of both, even when the other needed nothing:
 # tools/check-agent.sh and check-agent.ps1 both refuse to pass if they differ.
-$AgentVersion = '1.7.0'
+$AgentVersion = '1.8.0'
 
 # What the last failure was. These are how the installer tells "this machine is
 # not who it says it is" from "that did not get through" -- they are not the
@@ -997,7 +997,20 @@ function Build-Report {
 
     $collected = @()
 
-    if (Test-Collect 'disks') { $report['disks'] = Get-Disks; $collected += 'disks' }
+    # Every list is wrapped in @(), and it is not decoration.
+    #
+    # PowerShell unrolls a collection on the way out of a function, so a
+    # machine with exactly one fixed disk gets the hashtable itself back rather
+    # than an array holding it -- and the encoder, which checks IDictionary
+    # before IEnumerable, then writes "disks":{...} where the server is reading
+    # an array. It finds no rows in an object and stores none, while
+    # "collected" still says disks were gathered, so the machine's page shows
+    # no disks at all and nothing anywhere says why.
+    #
+    # A machine with two disks is fine, which is what kept this hidden: every
+    # other list here has hundreds of entries. Zero is wrong too -- an empty
+    # array comes back as $null, and "disks":null.
+    if (Test-Collect 'disks') { $report['disks'] = @(Get-Disks); $collected += 'disks' }
 
     if (Test-Collect 'updates') {
         $updates = Get-PendingUpdates
@@ -1005,15 +1018,15 @@ function Build-Report {
             $report['updates'] = [ordered]@{
                 reboot_required = (Test-RebootPending)
                 security_count  = 0
-                items           = $updates
+                items           = @($updates)
             }
             $collected += 'updates'
         }
     }
 
-    if (Test-Collect 'packages') { $report['packages'] = Get-InstalledPackages; $collected += 'packages' }
-    if (Test-Collect 'services') { $report['services'] = Get-Services; $collected += 'services' }
-    if (Test-Collect 'ports') { $report['ports'] = Get-ListeningPorts; $collected += 'ports' }
+    if (Test-Collect 'packages') { $report['packages'] = @(Get-InstalledPackages); $collected += 'packages' }
+    if (Test-Collect 'services') { $report['services'] = @(Get-Services); $collected += 'services' }
+    if (Test-Collect 'ports') { $report['ports'] = @(Get-ListeningPorts); $collected += 'ports' }
 
     $report['collected'] = $collected
     $report['interval_seconds'] = [int]$Config.MONITOR_INTERVAL
