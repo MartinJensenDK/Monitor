@@ -2489,18 +2489,30 @@ code {
 }
 
 .gauge__unit { font-size: 15px; color: var(--ink-muted); margin-left: 2px; }
-.gauge__foot { margin: 0; font-size: 11px; color: var(--ink-muted); }
+
+/* Pushed to the bottom of its own card. The cards stretch to the tallest of
+   them and no longer hold the same-sized graphic, so a foot left to land where
+   its neighbour above ended would sit at a different height in every card. */
+.gauge__foot { margin: auto 0 0; font-size: 11px; color: var(--ink-muted); }
 .gauge--warn .gauge__value { color: var(--warn); }
 .gauge--down .gauge__value { color: var(--down); }
 
 .gauge__spark { height: 34px; }
 
 /* The pie sits in the slot the line would have had, so the storage card is
-   still the same shape as the two beside it. Centred rather than stretched:
-   a circle pulled to the width of the card is an ellipse. */
-.gauge__spark--pie { display: flex; align-items: center; justify-content: center; }
+   still the same shape as the two beside it -- but bigger than the line was
+   and against the right edge, where it reads as the card's own mark rather
+   than as a small thing floating in the middle of it. Its slot gives up the
+   fixed height the line needs, because a circle pulled to a line's height
+   would be an ellipse. */
+.gauge__spark--pie {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    height: auto;
+}
 
-.pie { width: 34px; height: 34px; display: block; }
+.pie { width: 56px; height: 56px; display: block; }
 
 /* The dish is what is left; the slice is what is gone. Both take their colour
    from the card, so a disk that is nearly full is red here and red in the
