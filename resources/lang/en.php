@@ -47,6 +47,7 @@ return [
 
     // Shared actions
     'action.save' => 'Save changes',
+    'action.dismiss' => 'Dismiss',
     'action.cancel' => 'Cancel',
     'action.create' => 'Create',
     'action.delete' => 'Delete',
@@ -263,7 +264,8 @@ return [
     'device.enrolled' => 'Enrolled',
     'device.token' => 'Token',
 
-    'device.security_banner' => ':count security updates are waiting on this machine.',
+    'device.updates_notice' => ':count updates are waiting on this machine.',
+    'device.updates_notice_security' => ':count updates are waiting on this machine, :security of them security.',
     'device.reboot_banner' => 'An update has finished, but the machine has not been restarted.',
 
     'device.disks' => 'Storage',

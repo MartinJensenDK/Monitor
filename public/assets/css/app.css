@@ -1308,6 +1308,80 @@ a:hover { text-decoration: underline; }
    stretch the page sideways. */
 .flash code { word-break: break-all; }
 
+/* ── Notifications ──────────────────────────────────────────────────────
+   Top of the screen, out of the way, gone again. A flash is the answer to
+   something somebody just did, and it should not push the page down to say
+   so -- which is what it did when it was part of the flow.
+
+   The server still renders them into the page, and script lifts them up here.
+   Without script they stay where they were and behave as they always did,
+   which is the whole reason they are not written here in the first place.   */
+
+.toasts {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: min(520px, calc(100vw - 28px));
+    pointer-events: none;
+}
+
+.toast {
+    pointer-events: auto;
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    max-width: 100%;
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel) 94%, transparent);
+    backdrop-filter: blur(10px);
+    box-shadow: var(--shadow-2, 0 8px 24px rgb(0 0 0 / 0.18));
+    font-size: 12.5px;
+    line-height: 1.35;
+    color: var(--ink-2);
+    opacity: 0;
+    transform: translateY(-8px);
+    transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.toast--in { opacity: 1; transform: none; }
+.toast--out { opacity: 0; transform: translateY(-8px); }
+
+.toast .icon { flex: none; width: 15px; height: 15px; margin-top: 1px; }
+.toast--success .icon { color: var(--up); }
+.toast--error .icon { color: var(--down); }
+.toast--warning .icon { color: var(--warn); }
+
+/* One that stays until it is sent away has something to send it away with. */
+.toast__close {
+    flex: none;
+    margin: -2px -4px -2px 2px;
+    padding: 2px 4px;
+    border: 0;
+    background: none;
+    color: var(--ink-muted);
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+}
+
+.toast__close:hover { color: var(--ink); background: var(--panel-3); }
+
+/* A pill is the wrong shape once there are two lines in it. */
+.toast--wide { border-radius: var(--radius); padding: 10px 12px; }
+
+@media (max-width: 860px) {
+    .toasts { top: 8px; width: calc(100vw - 16px); }
+}
+
 /* ── Empty states ───────────────────────────────────────────────────── */
 
 .empty {

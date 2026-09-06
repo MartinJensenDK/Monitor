@@ -175,20 +175,40 @@ $facts = array_filter([
         </div>
     </section>
 
-    <?php if ((int) $device['reboot_required'] === 1 || (int) $device['updates_security'] > 0): ?>
+    <?php
+    // Updates waiting is a standing fact, not an answer to a click, so it goes
+    // to the top of the screen and stays there until it is sent away -- and it
+    // is sent away against the number, not for good. A machine that had three
+    // waiting and now has nine has something new to say; one that still has
+    // three does not. Nothing is said at zero, which is why nothing is stored
+    // for it either.
+    $pending = (int) $device['updates_total'];
+    $securityPending = (int) $device['updates_security'];
+    ?>
+    <?php if ($pending > 0): ?>
+        <div hidden
+             data-notice="<?= $securityPending > 0 ? 'error' : 'warning' ?>"
+             data-notice-key="monitor.updates.<?= e($uuid) ?>"
+             data-notice-value="<?= $pending ?>"
+             data-notice-dismiss="<?= e(t('action.dismiss')) ?>">
+            <?= icon($securityPending > 0 ? 'shield' : 'download') ?>
+            <span>
+                <?= e($securityPending > 0
+                    ? t('device.updates_notice_security', ['count' => $pending, 'security' => $securityPending])
+                    : t('device.updates_notice', ['count' => $pending])) ?>
+            </span>
+        </div>
+    <?php endif; ?>
+
+    <?php // A restart owed is a standing condition and stays in the page:
+          // there is no count to make it news again, and dismissing it would
+          // simply hide it. ?>
+    <?php if ((int) $device['reboot_required'] === 1): ?>
         <div class="flashes" style="margin-top:18px;">
-            <?php if ((int) $device['updates_security'] > 0): ?>
-                <div class="flash flash--error" role="status">
-                    <?= icon('shield') ?>
-                    <span><?= e(t('device.security_banner', ['count' => (int) $device['updates_security']])) ?></span>
-                </div>
-            <?php endif; ?>
-            <?php if ((int) $device['reboot_required'] === 1): ?>
-                <div class="flash flash--warning" role="status">
-                    <?= icon('refresh') ?>
-                    <span><?= e(t('device.reboot_banner')) ?></span>
-                </div>
-            <?php endif; ?>
+            <div class="flash flash--warning" role="status">
+                <?= icon('refresh') ?>
+                <span><?= e(t('device.reboot_banner')) ?></span>
+            </div>
         </div>
     <?php endif; ?>
 

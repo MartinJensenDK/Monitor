@@ -42,6 +42,7 @@ return [
     'role.viewer_hint' => 'Læser dashboards og hændelser. Ændrer intet.',
 
     'action.save' => 'Gem ændringer',
+    'action.dismiss' => 'Afvis',
     'action.cancel' => 'Annullér',
     'action.create' => 'Opret',
     'action.delete' => 'Slet',
@@ -250,7 +251,8 @@ return [
     'device.enrolled' => 'Tilmeldt',
     'device.token' => 'Token',
 
-    'device.security_banner' => 'Der venter :count sikkerhedsopdateringer på denne maskine.',
+    'device.updates_notice' => 'Der venter :count opdateringer på denne maskine.',
+    'device.updates_notice_security' => 'Der venter :count opdateringer på denne maskine, heraf :security sikkerhedsopdateringer.',
     'device.reboot_banner' => 'En opdatering er færdig, men maskinen er ikke genstartet.',
 
     'device.disks' => 'Lager',

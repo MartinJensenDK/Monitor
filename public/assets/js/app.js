@@ -39,6 +39,113 @@
         document.cookie = 'monitor_theme=' + theme + ';path=/;max-age=31536000;samesite=lax';
     });
 
+    /* ── Notifications ──────────────────────────────────────────────── */
+
+    // Two kinds share one place at the top of the screen. A flash answers
+    // something somebody just did and is gone in three seconds; a notice is a
+    // standing fact about the page and stays until it is sent away.
+    //
+    // The server renders flashes into the page as it always has, and these are
+    // lifted out of it. With script off they stay where they were rendered and
+    // behave exactly as before, which is why they are not built here.
+
+    var TOAST_MS = 3000;
+    var toasts = null;
+
+    function toastArea() {
+        if (toasts && document.body.contains(toasts)) return toasts;
+
+        toasts = document.createElement('div');
+        toasts.className = 'toasts';
+        toasts.setAttribute('aria-live', 'polite');
+        document.body.appendChild(toasts);
+
+        return toasts;
+    }
+
+    function dismiss(toast) {
+        if (toast.dataset.going === '1') return;
+        toast.dataset.going = '1';
+        toast.classList.remove('toast--in');
+        toast.classList.add('toast--out');
+        window.setTimeout(function () { toast.remove(); }, 220);
+    }
+
+    function show(toast, sticky) {
+        toastArea().appendChild(toast);
+        // Two frames, so the browser has painted the starting state and has
+        // something to transition from.
+        window.requestAnimationFrame(function () {
+            window.requestAnimationFrame(function () { toast.classList.add('toast--in'); });
+        });
+
+        if (!sticky) window.setTimeout(function () { dismiss(toast); }, TOAST_MS);
+    }
+
+    // The server's flashes, moved rather than rebuilt: whatever markup and
+    // wording they were given is what appears. Only the ones the layout marked
+    // as answers to a click -- a standing warning about the database, or about
+    // a machine wanting a restart, is not something to take away after three
+    // seconds.
+    document.querySelectorAll('[data-flash-toast] .flash').forEach(function (flash) {
+        var kind = (flash.className.match(/flash--([a-z]+)/) || [])[1] || '';
+        var wrapper = flash.parentElement;
+
+        flash.classList.add('toast');
+        if (kind) flash.classList.add('toast--' + kind);
+        flash.classList.remove('flash');
+        if (kind) flash.classList.remove('flash--' + kind);
+
+        show(flash, false);
+        if (wrapper && wrapper.children.length === 0) wrapper.remove();
+    });
+
+    document.addEventListener('click', function (event) {
+        var close = event.target.closest('.toast__close');
+        if (!close) return;
+
+        var toast = close.closest('.toast');
+        if (!toast) return;
+
+        if (toast.dataset.noticeKey) {
+            // Sent away for this count, and only this count: when the machine
+            // has a different number waiting it is news again. Nothing is
+            // stored for zero, because zero never shows in the first place.
+            try {
+                window.localStorage.setItem(toast.dataset.noticeKey, toast.dataset.noticeValue || '');
+            } catch (error) { /* private windows have no storage; it just comes back */ }
+        }
+
+        dismiss(toast);
+    });
+
+    // A standing fact about the page, dismissed against a value rather than
+    // for good.
+    document.querySelectorAll('[data-notice]').forEach(function (source) {
+        var key = source.getAttribute('data-notice-key') || '';
+        var value = source.getAttribute('data-notice-value') || '';
+        var seen = null;
+
+        try { seen = window.localStorage.getItem(key); } catch (error) { seen = null; }
+        if (key && seen === value) return;
+
+        var toast = document.createElement('div');
+        toast.className = 'toast toast--wide toast--' + (source.getAttribute('data-notice') || 'warning');
+        toast.setAttribute('role', 'status');
+        toast.dataset.noticeKey = key;
+        toast.dataset.noticeValue = value;
+        toast.innerHTML = source.innerHTML;
+
+        var close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'toast__close';
+        close.setAttribute('aria-label', source.getAttribute('data-notice-dismiss') || 'Dismiss');
+        close.textContent = '\u00d7';
+        toast.appendChild(close);
+
+        show(toast, true);
+    });
+
     /* ── How a list of machines is shown ────────────────────────────── */
 
     // The link already carries the choice in its address, so this page is

@@ -171,7 +171,10 @@ $isActive = static function (string $match) use ($currentPath): bool {
             <?php endif; ?>
 
             <?php if ($flash !== []): ?>
-                <div class="flashes">
+                <?php // Answers to something somebody just did, which script
+                      // lifts to the top of the screen and takes away again.
+                      // The warning above is a standing condition and stays. ?>
+                <div class="flashes" data-flash-toast>
                     <?php foreach ($flash as $message): ?>
                         <div class="flash flash--<?= e($message['type']) ?>" role="status">
                             <?= icon($message['type'] === 'success' ? 'check' : ($message['type'] === 'error' ? 'alert' : 'clock')) ?>
