@@ -70,7 +70,7 @@ $facts = array_filter([
     <section class="panel">
         <div class="panel__head">
             <div class="devhead">
-                <span class="devhead__icon"><?= icon($isServer ? 'server' : 'laptop') ?></span>
+                <span class="devhead__icon" title="<?= e(trim((string) ($device['os_name'] ?? '') . ' ' . (string) ($device['os_version'] ?? ''))) ?>"><?= icon(App\Support\Icons::forOsFamily((string) $device['os_family'])) ?></span>
                 <div>
                     <p class="eyebrow">
                         <?= e($isServer ? t('nav.servers') : t('nav.clients')) ?>

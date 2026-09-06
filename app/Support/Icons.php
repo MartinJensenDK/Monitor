@@ -20,6 +20,28 @@ final class Icons
         'alert' => '<path d="M12 4 2.5 20h19L12 4Z"/><path d="M12 10v4"/><circle cx="12" cy="17" r=".6" fill="currentColor" stroke="none"/>',
         'users' => '<circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 5.5a3.2 3.2 0 0 1 0 5"/><path d="M17.5 14.5A6 6 0 0 1 21 20"/>',
         'group' => '<rect x="3" y="4" width="8" height="7" rx="1.5"/><rect x="13" y="4" width="8" height="7" rx="1.5"/><rect x="8" y="14" width="8" height="6" rx="1.5"/><path d="M7 11v1.5h10V11"/><path d="M12 12.5V14"/>',
+        // The operating systems, as their own marks. A machine is far more
+        // usefully told apart by what it runs than by whether somebody filed
+        // it under servers or clients -- that is already decided by which page
+        // you are on.
+        //
+        // The apple is filled because an apple outline is not an apple; the
+        // other two are strokes like everything else here.
+        'os-windows' => '<path d="M3.6 6.3 10.6 5.3v6.1H3.6z"/><path d="M12.1 5.1 20.4 3.9v7.5h-8.3z"/>'
+            . '<path d="M3.6 12.7h7v6.1l-7-1z"/><path d="M12.1 12.7h8.3v7.5l-8.3-1.2z"/>',
+
+        'os-macos' => '<path fill="currentColor" stroke="none" d="M16.4 12.9c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.7'
+            . '-1.3-.1-2.5.8-3.2.8-.6 0-1.7-.7-2.8-.7-1.4 0-2.8.8-3.5 2.1-1.5 2.6-.4 6.5 1.1 8.6.7 1.1 1.5 2.2 2.6 2.2'
+            . '1 0 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.7 1.1 0 1.8-1 2.5-2.1.8-1.2 1.1-2.3 1.1-2.4-.1 0-2-.8-2-3.6z"/>'
+            . '<path fill="currentColor" stroke="none" d="M14.2 6.4c.6-.7.9-1.6.8-2.6-.8.1-1.8.6-2.4 1.3-.5.6-1 1.5-.8 2.5.9.1 1.8-.4 2.4-1.2z"/>',
+
+        'os-linux' => '<path d="M12 3.2c-2.1 0-3.6 1.6-3.6 3.7v1.6c0 .9-.5 1.6-1.1 2.4-1 1.3-1.9 2.7-1.9 4.6'
+            . '0 3.1 3 5.3 6.6 5.3s6.6-2.2 6.6-5.3c0-1.9-.9-3.3-1.9-4.6-.6-.8-1.1-1.5-1.1-2.4V6.9c0-2.1-1.5-3.7-3.6-3.7z"/>'
+            . '<circle cx="10.4" cy="7.4" r=".7" fill="currentColor" stroke="none"/>'
+            . '<circle cx="13.6" cy="7.4" r=".7" fill="currentColor" stroke="none"/>'
+            . '<path d="M11 9.3h2l-1 1.4z" fill="currentColor" stroke="none"/>'
+            . '<path d="M9.3 20.3c-.5.7-1.3 1.1-2.1 1.2"/><path d="M14.7 20.3c.5.7 1.3 1.1 2.1 1.2"/>',
+
         // The two ways a list of machines can be laid out, drawn as what they
         // produce: four panels, and four lines.
         'grid' => '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
@@ -73,6 +95,22 @@ final class Icons
         return '<svg class="' . htmlspecialchars($class, ENT_QUOTES) . '" viewBox="0 0 24 24" fill="none" '
             . 'stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" '
             . 'aria-hidden="true" focusable="false">' . $path . '</svg>';
+    }
+
+    /**
+     * The mark for a machine: what it runs.
+     *
+     * A family this install has never heard of gets the generic screen rather
+     * than a wrong flag -- 'other' is a real answer from Payload, not a gap.
+     */
+    public static function forOsFamily(string $family): string
+    {
+        return match ($family) {
+            'linux' => 'os-linux',
+            'windows' => 'os-windows',
+            'macos' => 'os-macos',
+            default => 'desktop',
+        };
     }
 
     public static function forMonitorType(string $type): string

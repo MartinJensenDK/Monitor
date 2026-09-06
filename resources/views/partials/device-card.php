@@ -9,7 +9,7 @@
  * @var array<string,mixed> $device
  */
 
-use App\Domain\Devices;
+use App\Support\Icons;
 
 $status = (string) $device['status'];
 $memoryPercent = percent_of(
@@ -40,7 +40,7 @@ $pending = (int) $device['updates_total'];
     </div>
 
     <p class="devcard__os truncate">
-        <?= icon(Devices::normaliseKind((string) $device['kind']) === Devices::KIND_SERVER ? 'server' : 'laptop', 'icon icon--sm') ?>
+        <?= icon(Icons::forOsFamily((string) ($device['os_family'] ?? '')), 'icon icon--sm') ?>
         <?= e(trim((string) ($device['os_name'] ?? '') . ' ' . (string) ($device['os_version'] ?? '')) ?: t('device.os_unknown')) ?>
     </p>
 

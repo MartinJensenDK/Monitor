@@ -10,7 +10,7 @@
  * @var array<string,mixed> $device
  */
 
-use App\Domain\Devices;
+use App\Support\Icons;
 
 $status = (string) $device['status'];
 $uuid = (string) $device['uuid'];
@@ -26,11 +26,11 @@ $cpuPercent = $device['cpu_percent'] === null ? null : (int) round((float) $devi
 
 $security = (int) $device['updates_security'];
 $pending = (int) $device['updates_total'];
-$isServer = Devices::normaliseKind((string) $device['kind']) === Devices::KIND_SERVER;
+$osLabel = trim((string) ($device['os_name'] ?? '') . ' ' . (string) ($device['os_version'] ?? '')) ?: t('device.os_unknown');
 ?>
 <div class="devrow" data-device-id="<?= e($uuid) ?>">
     <div class="devrow__id">
-        <span class="devrow__icon"><?= icon($isServer ? 'server' : 'laptop') ?></span>
+        <span class="devrow__icon" title="<?= e($osLabel) ?>"><?= icon(Icons::forOsFamily((string) ($device['os_family'] ?? ''))) ?></span>
         <span class="truncate">
             <a class="row__name truncate" href="/devices/<?= e($uuid) ?>"><?= e((string) $device['name']) ?></a>
             <span class="row__target truncate"><?= e((string) ($device['primary_ip'] ?? $device['hostname'])) ?></span>
