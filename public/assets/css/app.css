@@ -2495,6 +2495,24 @@ code {
 
 .gauge__spark { height: 34px; }
 
+/* The pie sits in the slot the line would have had, so the storage card is
+   still the same shape as the two beside it. Centred rather than stretched:
+   a circle pulled to the width of the card is an ellipse. */
+.gauge__spark--pie { display: flex; align-items: center; justify-content: center; }
+
+.pie { width: 34px; height: 34px; display: block; }
+
+/* The dish is what is left; the slice is what is gone. Both take their colour
+   from the card, so a disk that is nearly full is red here and red in the
+   number above it without either of them being told twice. */
+.pie__dish { fill: var(--accent-bg); }
+.pie__slice { stroke: var(--accent); }
+
+.gauge--warn .pie__dish { fill: var(--warn-bg); }
+.gauge--warn .pie__slice { stroke: var(--warn); }
+.gauge--down .pie__dish { fill: var(--down-bg); }
+.gauge--down .pie__slice { stroke: var(--down); }
+
 .spark { width: 100%; height: 34px; display: block; }
 .spark__area { fill: var(--accent-bg); }
 .spark__line { stroke: var(--accent); stroke-width: 1.5; }

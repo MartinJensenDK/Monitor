@@ -21,6 +21,7 @@
 
 use App\Core\View;
 use App\Domain\Devices;
+use App\Support\Pie;
 use App\Support\Sparkline;
 
 $status = (string) $device['status'];
@@ -151,15 +152,27 @@ $facts = array_filter([
 
         <div class="panel__body">
             <div class="grid grid--gauges">
-                <?php foreach ([
-                    ['label' => t('device.cpu'), 'percent' => $cpuPercent, 'series' => $cpuSeries, 'foot' => (string) ($device['load1'] ?? '') !== '' ? t('device.load', ['value' => $device['load1']]) : ''],
-                    ['label' => t('device.memory'), 'percent' => $memoryPercent, 'series' => $memorySeries, 'foot' => format_bytes($device['memory_used_bytes'] === null ? null : (int) $device['memory_used_bytes']) . ' / ' . format_bytes($device['memory_bytes'] === null ? null : (int) $device['memory_bytes'])],
-                    ['label' => t('device.storage'), 'percent' => $diskPercent, 'series' => $diskSeries, 'foot' => format_bytes($device['disk_used_bytes'] === null ? null : (int) $device['disk_used_bytes']) . ' / ' . format_bytes($device['disk_total_bytes'] === null ? null : (int) $device['disk_total_bytes'])],
+                <?php
+                // Processor and memory are rates: what matters is which way
+                // they have been going, so they get the last day as a line.
+                //
+                // A disk is not a rate. It is a quantity with some of it gone,
+                // and the question is how much room is left -- which a pie
+                // answers at a glance and a line of a barely-moving number
+                // does not.
+                foreach ([
+                    ['label' => t('device.cpu'), 'percent' => $cpuPercent, 'shape' => 'line', 'series' => $cpuSeries, 'foot' => (string) ($device['load1'] ?? '') !== '' ? t('device.load', ['value' => $device['load1']]) : ''],
+                    ['label' => t('device.memory'), 'percent' => $memoryPercent, 'shape' => 'line', 'series' => $memorySeries, 'foot' => format_bytes($device['memory_used_bytes'] === null ? null : (int) $device['memory_used_bytes']) . ' / ' . format_bytes($device['memory_bytes'] === null ? null : (int) $device['memory_bytes'])],
+                    ['label' => t('device.storage'), 'percent' => $diskPercent, 'shape' => 'pie', 'series' => $diskSeries, 'foot' => format_bytes($device['disk_used_bytes'] === null ? null : (int) $device['disk_used_bytes']) . ' / ' . format_bytes($device['disk_total_bytes'] === null ? null : (int) $device['disk_total_bytes'])],
                 ] as $gauge): ?>
                     <div class="gauge gauge--<?= e(meter_level($gauge['percent'])) ?>">
                         <p class="eyebrow"><?= e($gauge['label']) ?></p>
                         <p class="gauge__value num"><?= $gauge['percent'] === null ? '—' : (int) $gauge['percent'] . '<span class="gauge__unit">%</span>' ?></p>
-                        <div class="gauge__spark"><?= Sparkline::svg($gauge['series']) ?></div>
+                        <div class="gauge__spark<?= $gauge['shape'] === 'pie' ? ' gauge__spark--pie' : '' ?>">
+                            <?= $gauge['shape'] === 'pie'
+                                ? Pie::svg($gauge['percent'] === null ? null : (float) $gauge['percent'])
+                                : Sparkline::svg($gauge['series']) ?>
+                        </div>
                         <p class="gauge__foot"><?= e($gauge['foot']) ?></p>
                     </div>
                 <?php endforeach; ?>
