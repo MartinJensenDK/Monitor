@@ -648,7 +648,7 @@ fi
 echo
 echo 'The two agents move together'
 
-# One version between them, so "this machine is on 1.11.0" means the same thing
+# One version between them, so "this machine is on 1.12.0" means the same thing
 # whichever agent it is running. A fix to one is a release of both, even when
 # the other needed nothing -- otherwise the numbers drift and stop meaning
 # anything, and Monitor offers a version to a platform that never got it.
@@ -1117,6 +1117,115 @@ if [ "$got" = "exit=100" ]; then
     ok 'so a package manager exiting 100 arrives as 100'
 else
     bad 'so a package manager exiting 100 arrives as 100' 'exit=100' "$got"
+fi
+
+
+# An update that needs a new package, which is the shape of update a plain
+# apt-get upgrade will not touch and will not mention either. linux-firmware
+# was split into eighteen packages; a machine still holding the single old one
+# was told by apt list --upgradable that an update was waiting, and by Monitor
+# that none was. The stub answers the way that machine did: nothing at all
+# unless it is asked with --with-new-pkgs.
+
+echo
+echo 'An update that can only arrive with a new package'
+
+APTBIN="$WORK/aptbin"
+mkdir -p "$APTBIN"
+
+cat > "$APTBIN/apt-get" <<'APTEOF'
+#!/bin/sh
+for arg in "$@"; do
+    [ "$arg" = "--with-new-pkgs" ] && with_new=yes
+done
+[ "${with_new:-no}" = yes ] || exit 0
+cat <<'OUT'
+Reading package lists...
+Building dependency tree...
+Inst linux-firmware [20240318.git3b128b60-0ubuntu2.29] (20240318.git3b128b60.0ubuntu3.1 Ubuntu:24.04/noble-updates [all])
+Inst linux-firmware-amd-graphics (20240318.git3b128b60.0ubuntu3.1 Ubuntu:24.04/noble-updates [all])
+Inst linux-firmware-nvidia-graphics (20240318.git3b128b60.0ubuntu3.1 Ubuntu:24.04/noble-updates [all])
+Conf linux-firmware (20240318.git3b128b60.0ubuntu3.1 Ubuntu:24.04/noble-updates [all])
+OUT
+APTEOF
+
+# An apt-get from before the option existed: it refuses the command rather than
+# ignoring the argument, and still has an ordinary update to report.
+cat > "$APTBIN/apt-get.old" <<'APTEOF'
+#!/bin/sh
+for arg in "$@"; do
+    case "$arg" in --with-new-pkgs)
+        echo "E: Command line option --with-new-pkgs is not understood" >&2
+        exit 100 ;;
+    esac
+done
+cat <<'OUT'
+Inst curl [8.5.0-2ubuntu10.6] (8.5.0-2ubuntu10.7 Ubuntu:24.04/noble-security [amd64])
+OUT
+APTEOF
+
+chmod +x "$APTBIN"/apt-get "$APTBIN"/apt-get.old
+
+got=$(agent_case <<CASEEOF
+PATH="$APTBIN:\$PATH"
+updates_items
+CASEEOF
+)
+expected='{"name":"linux-firmware","current_version":"20240318.git3b128b60-0ubuntu2.29","available_version":"20240318.git3b128b60.0ubuntu3.1","source":"20240318.git3b128b60.0ubuntu3.1 Ubuntu:24.04/noble-updates [all]","is_security":false}'
+if [ "$got" = "$expected" ]; then
+    ok 'the held-back update is found, and is the only thing counted'
+else
+    bad 'the held-back update is found, and is the only thing counted' "$expected" "$got"
+fi
+
+# The two packages the split drags in are the cost of that one update, not two
+# more of them. Counting them would put three on a screen where the machine
+# itself says one.
+got=$(agent_case <<CASEEOF
+PATH="$APTBIN:\$PATH"
+updates_items | grep -c '"name":' || true
+CASEEOF
+)
+if [ "$got" = "1" ]; then
+    ok 'the packages it drags in are not counted as updates of their own'
+else
+    bad 'the packages it drags in are not counted as updates of their own' '1' "$got"
+fi
+
+# And the architecture in the brackets after the version is not mistaken for
+# the version being replaced, which is what reading the first [...] on the line
+# would have done.
+got=$(agent_case <<CASEEOF
+PATH="$APTBIN:\$PATH"
+updates_items | grep -c '"current_version":"all"' || true
+CASEEOF
+)
+if [ "$got" = "0" ]; then
+    ok 'and an architecture is not read as a version'
+else
+    bad 'and an architecture is not read as a version' '0' "$got"
+fi
+
+mv "$APTBIN/apt-get.old" "$APTBIN/apt-get"
+got=$(agent_case <<CASEEOF
+PATH="$APTBIN:\$PATH"
+updates_items
+CASEEOF
+)
+case "$got" in
+    *'"name":"curl"'*'"is_security":true'*)
+        ok 'an apt-get too old for the option still reports what it has' ;;
+    *)  bad 'an apt-get too old for the option still reports what it has' 'curl, as a security update' "$got" ;;
+esac
+
+# The count and the button have to be asking the same question. An install that
+# left the option off would report an update it could never clear -- and a
+# notice that cannot be cleared is worse than the one that was missing.
+if grep -q 'apt-get -y -qq \$new_pkgs' "$AGENT_DIR/agent.sh"; then
+    ok 'and the install asks for it too, so the count can be cleared'
+else
+    bad 'and the install asks for it too, so the count can be cleared' \
+        '--with-new-pkgs reaches the upgrade' 'the install and the count disagree'
 fi
 
 

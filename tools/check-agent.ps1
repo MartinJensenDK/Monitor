@@ -515,7 +515,7 @@ Check 'every setting survives enrolment' ($dropped -join ',') ''
 ''
 '-- the two agents move together --'
 #
-# One version between them, so "this machine is on 1.11.0" means the same thing
+# One version between them, so "this machine is on 1.12.0" means the same thing
 # whichever agent it is running. A fix to one is a release of both, even when
 # the other needed nothing -- otherwise the numbers drift and stop meaning
 # anything, and Monitor offers a version to a platform that never got it.

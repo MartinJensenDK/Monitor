@@ -30,10 +30,10 @@ export LC_ALL
 
 # One POSIX agent for Linux and macOS, and a PowerShell one for Windows.
 # They carry one version between them and move together, so that
-# "this machine is on 1.11.0" means the same thing whichever it is running. A
+# "this machine is on 1.12.0" means the same thing whichever it is running. A
 # change to one is a release of both, even when the other needed nothing:
 # tools/check-agent.sh and check-agent.ps1 both refuse to pass if they differ.
-AGENT_VERSION="1.11.0"
+AGENT_VERSION="1.12.0"
 CONF="${MONITOR_CONF:-/etc/monitor-agent/agent.conf}"
 
 MONITOR_URL=""
@@ -710,14 +710,41 @@ updates_items() {
     fi
 
     if have apt-get && [ -f /etc/debian_version ]; then
-        LC_ALL=C apt-get -s -o Debug::NoLocking=true upgrade 2>/dev/null \
-        | awk "
+        # --with-new-pkgs, because a plain upgrade refuses to install a package
+        # that is not already there, and an update needing one is then held
+        # back without a word. That is not a corner: linux-firmware was split
+        # into eighteen pieces, so on every machine still carrying the old
+        # single package, apt list --upgradable said one update was waiting and
+        # this said none. The machine was right.
+        #
+        # It is what the install asks for too, so the number said here and the
+        # upgrade that is meant to clear it are the same question. Not
+        # dist-upgrade: that one will remove a package to get its way, and
+        # nobody pressed a button for that.
+        #
+        # Asked for by running it, because an apt-get too old for the option --
+        # it arrived in 1.1 -- would refuse the whole command over it, and
+        # reporting nothing is the failure being fixed here.
+        sim="$WORK/apt-sim"
+        LC_ALL=C apt-get -s -o Debug::NoLocking=true --with-new-pkgs upgrade >"$sim" 2>/dev/null \
+            || LC_ALL=C apt-get -s -o Debug::NoLocking=true upgrade >"$sim" 2>/dev/null \
+            || true
+        awk "
             $AWK_ESC
             /^Inst / {
                 name = \$2
                 old = \"\"; new = \"\"; src = \"\"
                 line = \$0
-                if (match(line, /\[[^]]*\]/)) old = substr(line, RSTART + 1, RLENGTH - 2)
+                # The version being replaced stands before the bracket that
+                # opens the new one; the first [...] after it is the
+                # architecture. A line with nothing before that bracket is a
+                # new package one of these upgrades is dragging in, not an
+                # update of its own -- apt list --upgradable does not count
+                # those, so neither does this.
+                paren = index(line, \"(\")
+                head = (paren > 0) ? substr(line, 1, paren - 1) : line
+                if (match(head, /\[[^]]*\]/)) old = substr(head, RSTART + 1, RLENGTH - 2)
+                if (old == \"\") next
                 if (match(line, /\([^)]*\)/)) {
                     inner = substr(line, RSTART + 1, RLENGTH - 2)
                     split(inner, parts, \" \")
@@ -729,7 +756,8 @@ updates_items() {
                 printf \"{\\\"name\\\":\\\"%s\\\",\\\"current_version\\\":\\\"%s\\\",\\\"available_version\\\":\\\"%s\\\",\\\"source\\\":\\\"%s\\\",\\\"is_security\\\":%s}\",
                     esc(name), esc(old), esc(new), esc(src), sec
             }
-        "
+        " "$sim"
+        rm -f "$sim"
         return
     fi
 
@@ -1095,7 +1123,17 @@ run_command() {
             # report -- is done where the report is built instead.
             if have apt-get; then
                 DEBIAN_FRONTEND=noninteractive apt-get -qq update >/dev/null 2>&1 || true
-                DEBIAN_FRONTEND=noninteractive apt-get -y -qq -o Dpkg::Options::=--force-confold upgrade 2>&1
+                # The same --with-new-pkgs the count is taken with, or the two
+                # disagree in the way that is worst: a machine reporting an
+                # update that pressing this button cannot clear. Asked for by
+                # simulation first, since an apt-get without the option fails
+                # the command rather than ignoring it.
+                new_pkgs=
+                if apt-get -s -o Debug::NoLocking=true --with-new-pkgs upgrade >/dev/null 2>&1; then
+                    new_pkgs=--with-new-pkgs
+                fi
+                # Unquoted on purpose: empty means no argument, not an empty one.
+                DEBIAN_FRONTEND=noninteractive apt-get -y -qq $new_pkgs -o Dpkg::Options::=--force-confold upgrade 2>&1
             elif have dnf; then dnf -y -q upgrade 2>&1
             elif have zypper; then zypper --non-interactive update 2>&1
             elif have apk; then apk upgrade 2>&1
