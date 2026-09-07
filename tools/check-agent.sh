@@ -648,7 +648,7 @@ fi
 echo
 echo 'The two agents move together'
 
-# One version between them, so "this machine is on 1.12.0" means the same thing
+# One version between them, so "this machine is on 1.13.0" means the same thing
 # whichever agent it is running. A fix to one is a release of both, even when
 # the other needed nothing -- otherwise the numbers drift and stop meaning
 # anything, and Monitor offers a version to a platform that never got it.
@@ -1226,6 +1226,59 @@ if grep -q 'apt-get -y -qq \$new_pkgs' "$AGENT_DIR/agent.sh"; then
 else
     bad 'and the install asks for it too, so the count can be cleared' \
         '--with-new-pkgs reaches the upgrade' 'the install and the count disagree'
+fi
+
+
+# Ubuntu gives some updates to a fraction of its machines at a time. apt defers
+# the rest without saying so, the same silence as the held-back one above, and
+# the machine's own apt list --upgradable shows them regardless.
+
+echo
+echo 'An update Ubuntu is still handing out a fraction at a time'
+
+PHASEDBIN="$WORK/phasedbin"
+mkdir -p "$PHASEDBIN"
+
+cat > "$PHASEDBIN/apt-get" <<'APTEOF'
+#!/bin/sh
+for arg in "$@"; do
+    [ "$arg" = "APT::Get::Always-Include-Phased-Updates=true" ] && phased=yes
+done
+[ "${phased:-no}" = yes ] || exit 0
+cat <<'OUT'
+Inst distro-info-data [0.60ubuntu0.1] (0.60ubuntu0.2 Ubuntu:24.04/noble-updates [all])
+OUT
+APTEOF
+chmod +x "$PHASEDBIN/apt-get"
+
+got=$(agent_case <<CASEEOF
+PATH="$PHASEDBIN:\$PATH"
+updates_items
+CASEEOF
+)
+case "$got" in
+    *'"name":"distro-info-data"'*'"current_version":"0.60ubuntu0.1"'*'"available_version":"0.60ubuntu0.2"'*)
+        ok 'a deferred update is counted, not waited for in silence' ;;
+    *)  bad 'a deferred update is counted, not waited for in silence' \
+            'distro-info-data, 0.60ubuntu0.1 to 0.60ubuntu0.2' "$got" ;;
+esac
+
+# Showing one the button cannot take would be the worse half of the bug this
+# fixes, so the install carries the same option the count was taken with.
+if grep -q -- '-o "\$APT_PHASED" -o Dpkg::Options::=--force-confold upgrade' "$AGENT_DIR/agent.sh"; then
+    ok 'and the install takes it, so it can be cleared'
+else
+    bad 'and the install takes it, so it can be cleared' \
+        'the phased option reaches the upgrade' 'only the count has it'
+fi
+
+# A config key, not a flag: an apt-get that has never heard of phasing ignores
+# it, where an unknown flag would have failed the command outright.
+if grep -q 'APT_PHASED="APT::Get::Always-Include-Phased-Updates=true"' "$AGENT_DIR/agent.sh"; then
+    ok 'asked for as a setting, so an older apt-get passes it by' 
+else
+    bad 'asked for as a setting, so an older apt-get passes it by' \
+        'a -o key' 'a command line flag, or gone'
 fi
 
 

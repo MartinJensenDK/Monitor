@@ -30,10 +30,10 @@ export LC_ALL
 
 # One POSIX agent for Linux and macOS, and a PowerShell one for Windows.
 # They carry one version between them and move together, so that
-# "this machine is on 1.12.0" means the same thing whichever it is running. A
+# "this machine is on 1.13.0" means the same thing whichever it is running. A
 # change to one is a release of both, even when the other needed nothing:
 # tools/check-agent.sh and check-agent.ps1 both refuse to pass if they differ.
-AGENT_VERSION="1.12.0"
+AGENT_VERSION="1.13.0"
 CONF="${MONITOR_CONF:-/etc/monitor-agent/agent.conf}"
 
 MONITOR_URL=""
@@ -674,6 +674,18 @@ reboot_required() {
     echo false
 }
 
+# Ubuntu hands some updates to a fraction of its machines at a time, and apt
+# quietly defers the ones whose turn has not come. They are real all the same:
+# they are what apt list --upgradable lists, and what somebody standing at the
+# machine sees. So they are counted here and taken by the install -- the option
+# is named once because both have to agree about it, and a screen showing an
+# update that the button beside it will not take is the worse half of this bug.
+#
+# It is a config key rather than a flag, which means an apt-get too old to know
+# it ignores it instead of refusing the command. Debian does not phase anything
+# at all, so there it is a no-op.
+APT_PHASED="APT::Get::Always-Include-Phased-Updates=true"
+
 # Each package manager gets its own reader. They all emit the same JSON objects,
 # so whatever this machine happens to run, the site sees one shape.
 updates_items() {
@@ -726,8 +738,8 @@ updates_items() {
         # it arrived in 1.1 -- would refuse the whole command over it, and
         # reporting nothing is the failure being fixed here.
         sim="$WORK/apt-sim"
-        LC_ALL=C apt-get -s -o Debug::NoLocking=true --with-new-pkgs upgrade >"$sim" 2>/dev/null \
-            || LC_ALL=C apt-get -s -o Debug::NoLocking=true upgrade >"$sim" 2>/dev/null \
+        LC_ALL=C apt-get -s -o Debug::NoLocking=true -o "$APT_PHASED" --with-new-pkgs upgrade >"$sim" 2>/dev/null \
+            || LC_ALL=C apt-get -s -o Debug::NoLocking=true -o "$APT_PHASED" upgrade >"$sim" 2>/dev/null \
             || true
         awk "
             $AWK_ESC
@@ -1132,8 +1144,15 @@ run_command() {
                 if apt-get -s -o Debug::NoLocking=true --with-new-pkgs upgrade >/dev/null 2>&1; then
                     new_pkgs=--with-new-pkgs
                 fi
+                # And $APT_PHASED, for the same reason: a machine that has been
+                # shown a deferred update has to be able to take it. Pressing
+                # this is somebody deciding not to wait for Ubuntu's turn to
+                # come round, which is theirs to decide -- nothing here installs
+                # anything on its own.
+                #
                 # Unquoted on purpose: empty means no argument, not an empty one.
-                DEBIAN_FRONTEND=noninteractive apt-get -y -qq $new_pkgs -o Dpkg::Options::=--force-confold upgrade 2>&1
+                DEBIAN_FRONTEND=noninteractive apt-get -y -qq $new_pkgs \
+                    -o "$APT_PHASED" -o Dpkg::Options::=--force-confold upgrade 2>&1
             elif have dnf; then dnf -y -q upgrade 2>&1
             elif have zypper; then zypper --non-interactive update 2>&1
             elif have apk; then apk upgrade 2>&1

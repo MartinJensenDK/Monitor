@@ -283,13 +283,35 @@ of those are security. Then the agent reports, so the list on the machine's
 page is the one that was just fetched.
 
 The **report** deliberately does not do any of this. It asks what is already on
-disk — `apt-get -s upgrade` against the lists as they stand, `Online = $false`
+disk — a simulated upgrade against the lists as they stand, `Online = $false`
 on Windows — because a report happens every few minutes and going out to the
 network on that schedule would be the most expensive thing the agent does, for
 an answer that changes about once a day. The consequence is worth knowing: a
 machine whose lists have never been refreshed shows nothing waiting until
 something refreshes them, which on Linux is any `apt update` and on Windows is
 Windows Update's own daily scan — or this button, on either.
+
+### What counts as waiting
+
+On Debian and Ubuntu the count is what `apt list --upgradable` shows, which is
+what somebody standing at the machine sees. Getting there takes two arguments,
+because a plain `apt-get -s upgrade` silently omits two kinds of update:
+
+| | Why apt holds it back | What we pass |
+|---|---|---|
+| Needs a new package | A plain upgrade never installs one, and `linux-firmware` was split into eighteen | `--with-new-pkgs` |
+| Being rolled out gradually | Ubuntu gives it to a fraction of its machines at a time, and this one's turn has not come | `-o APT::Get::Always-Include-Phased-Updates=true` |
+
+Both were found the same way: the machine said one update was waiting and
+Monitor said none.
+
+**Install updates** passes both as well, and that is the part worth stating
+plainly. A machine shown an update it cannot be told to take would leave a
+notice standing until Ubuntu's rollout reached it. So pressing the button takes
+a phased update ahead of its turn — a person deciding not to wait, which is
+theirs to decide. Nothing here installs anything on its own.
+
+Neither is `dist-upgrade`, which will remove a package to get its way.
 
 ---
 
@@ -549,7 +571,7 @@ and this agent is root.
 ## One version, three platforms
 
 The Linux and Windows agents carry the same version number and are released
-together, so "this machine is on 1.12.0" means the same thing whichever one it
+together, so "this machine is on 1.13.0" means the same thing whichever one it
 is running. A fix to one is a release of both, even when the other needed
 nothing — otherwise the numbers drift and stop meaning anything, and this
 server ends up offering a version to a platform that never got it. Both check

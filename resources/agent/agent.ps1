@@ -40,10 +40,10 @@ $ErrorActionPreference = 'Stop'
 
 # One POSIX agent for Linux and macOS, and this one for Windows. They carry
 # one version between them and move together, so that
-# "this machine is on 1.12.0" means the same thing whichever it is running.
+# "this machine is on 1.13.0" means the same thing whichever it is running.
 # A change to one is a release of both, even when the other needed nothing:
 # tools/check-agent.sh and check-agent.ps1 both refuse to pass if they differ.
-$AgentVersion = '1.12.0'
+$AgentVersion = '1.13.0'
 
 # What the last failure was. These are how the installer tells "this machine is
 # not who it says it is" from "that did not get through" -- they are not the
