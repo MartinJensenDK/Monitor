@@ -50,9 +50,38 @@ on a small endpoint every few seconds to ask whether anything is waiting, which
 makes a queued command land in seconds and a machine going quiet noticeable in
 under a minute — without a daemon, a service or an open port anywhere.
 
-By default it only reports; an administrator can additionally ask it to refresh
-its update list, install updates or restart, and each of those last two only
-works if whoever installed the agent allowed it on the machine itself. See
+By default it only reports. An administrator can additionally ask it to refresh
+its update list, and — where the machine was installed to allow it — install
+updates, restart, or replace its own agent. Those three need two keys: this site
+offering them, and consent given on the machine at install time, which cannot be
+granted from here. The agent says which permissions it holds, so a button the
+machine is going to refuse is marked as such before anybody presses it.
+
+**Settings → Agent** holds what belongs to the site rather than to one machine:
+the defaults a new machine enrols with (report interval, poll interval, log
+level), fleet-wide switches that can only ever withhold — whether updates are
+offered at all, whether commands are allowed at all — how long an agent leaves
+between attempts at replacing itself, and a ready-made install command for each
+of the three platforms. Changing a default does not reach the machines that
+already exist; a button of its own does that, deliberately.
+
+A machine's own page keeps up while you watch it. Its commands sit in a toolbar
+frozen to the top of the page; the log streams line by line *while* a command
+runs rather than after it; and the status line, the gauges — processor, memory, a
+pie for the disk, uptime — and the machine's own facts refresh themselves without
+a reload. Those panels are rendered by the server from the same templates the
+page was built with, so what arrives an hour in cannot have drifted from what you
+started looking at.
+
+**Servers** and **Clients** read as cards or as a list, whichever was chosen
+last, each machine marked with the icon of what it runs, and the list carrying a
+column for the agent version installed and whether a newer one is waiting.
+
+On Debian and Ubuntu, what the site counts as waiting is what the machine's own
+`apt list --upgradable` shows — including the updates a plain `apt-get upgrade`
+holds back because they need a new package, and the ones Ubuntu is still handing
+out to a fraction of its machines at a time. Both of those were found the same
+way: the machine said one update was waiting and the site said none. See
 [docs/AGENT.md](docs/AGENT.md).
 
 **Everything around them**
@@ -65,6 +94,12 @@ works if whoever installed the agent allowed it on the machine itself. See
   skip — is logged, so "why didn't I get an email?" has an answer.
 - **Live dashboard** — the page updates every five seconds without reloading.
   Nothing changed since the last poll costs the server one query and returns 304.
+- **Notices** — an answer to something you did appears at the top of the screen
+  and fades after a few seconds. A standing fact — updates waiting, a restart
+  outstanding — stays instead, and is dismissed against the number rather than
+  for good, so it returns when the count changes and goes for good when it
+  reaches zero. Standing notices sit above the passing ones and keep themselves
+  right without a reload.
 - **Locations and the world map** — give a monitor a place, and it appears as a pin
   on the dashboard map, coloured by the worst thing happening there. Places are
   named and placed by you: click the map, or type the coordinates. Nothing is
@@ -195,8 +230,9 @@ Agents authenticate with a token unique to the machine, kept here only as a hash
 and never recoverable from this side. Enrolment keys are separate from tokens, so
 a leaked key is revoked without touching machines that already enrolled with it.
 Everything a machine posts is clamped and cut to size before it is stored, and
-the only thing this site can ask a machine to do is one of five named actions
-that the machine itself has to have agreed to. See
+the only thing this site can ask a machine to do is one of five named actions —
+the three of them that change a machine only if it agreed to that at install
+time, on the machine. See
 [docs/AGENT.md](docs/AGENT.md#security).
 
 ## Licence
