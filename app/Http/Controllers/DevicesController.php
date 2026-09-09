@@ -150,9 +150,10 @@ final class DevicesController extends Controller
             //
             // Rendered through the same templates the page used, so what
             // arrives an hour in cannot be shaped differently from what was
-            // painted at the start. The readings cost a 24-hour query, which
-            // measures at under half a millisecond -- the same as fetching the
-            // machine's own row.
+            // painted at the start. The readings cost a 24-hour query: on this
+            // fleet, 49 to 280 rows depending on how often a machine reports,
+            // in half a millisecond to two. Small enough that avoiding it would
+            // cost more than paying it.
             'status' => View::partial('partials/device-status', ['device' => $fresh]),
             'gauges' => View::partial('partials/device-gauges', [
                 'device' => $fresh,

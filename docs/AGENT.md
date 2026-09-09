@@ -224,6 +224,22 @@ page to hand the decision back.
 
 ---
 
+## Reading a fleet
+
+**Servers** and **Clients** are the same machines split by what they are, and
+each page reads two ways:
+
+- **Cards** give a machine a tile of its own, with its meters in it.
+- **A list** lines the same numbers up in columns, so a column can be read down
+  the page — which is the one thing a list does that a grid of cards cannot.
+
+Which one is a cookie rather than a column in the database: it is a preference
+about this screen, not a fact about the fleet, and it follows the same pattern
+the theme does. Every machine carries the icon of what it runs, and the list has
+a column for the agent version, marked when this server holds a newer one.
+
+---
+
 ## Asking a machine to do something
 
 Five things, and only five:
@@ -356,6 +372,69 @@ level is never written, rather than being written and then hidden.
 
 ---
 
+## A page that keeps up
+
+The log is not the only thing on that page that goes stale while somebody
+watches it. A machine reports every few minutes, and everything the page says
+about it — how full the disk is, how long ago it last reported, which agent it
+runs, what it was last asked to do — is already minutes old when it is drawn.
+
+So the poll that fetches log lines brings the rest back with it. One request,
+which was being made anyway, also carries:
+
+| | |
+|---|---|
+| The status line | The pill, and how long ago the machine last reported |
+| The gauges | Processor, memory, the disk as a pie, uptime |
+| **The machine** | Its facts, including which agent it runs and whether a newer one is waiting |
+| **What it has been asked** | The commands, with their pills and their cancel buttons — sent only to somebody who may queue one |
+| Notices | Updates waiting, a restart owed |
+
+They arrive as rendered HTML rather than as numbers, because the server renders
+them from the same partials the page itself was built from. One template per
+panel, used twice — once into the page, once into this answer — so what arrives
+an hour in cannot have drifted from what somebody started looking at. Two
+renderings of one thing always drift eventually; this is the shape that stops
+there being two.
+
+A panel is written back only when its HTML has actually changed. Most answers
+change nothing, and replacing a panel that is already right would restart its
+transitions and take the selection out from under somebody reading it.
+
+The gauges need a day of readings to draw, which is the one measurable cost
+here. Measured rather than assumed: 49 to 280 rows depending on how often the
+machine reports, in half a millisecond to two. Small enough that avoiding it
+would cost more than paying it.
+
+The commands themselves sit in a toolbar frozen to the top of the page, so a
+machine with a long log does not have to be scrolled back up to be asked for
+something.
+
+### Notices
+
+An answer to something somebody did — a command queued, a setting saved —
+appears at the top of the screen and fades after three seconds.
+
+Two things are not answers to anything: updates waiting, and a restart owed.
+Those are conditions. They are true until the machine says otherwise, so they
+stay until they are sent away rather than fading, and sending one away puts it
+away **against the value it is currently true for**. Nine updates dismissed
+stays dismissed at nine and returns the moment the number moves, because forty
+is news. Reaching zero takes it off and forgets the dismissal, so the next time
+it becomes true it is new again.
+
+That is also why this server sends every notice a machine could have, including
+the ones that are not true: a page told only about what is true now could never
+clear a dismissal for something that has stopped being true, and the machine
+would stay quiet about it the next time round.
+
+Standing notices sit above the passing ones, side by side when there is more
+than one, and they come down the same channel as the panels. A restart that
+falls due while the page is open says so without a reload, and one that has been
+satisfied takes itself off.
+
+---
+
 ## Updating the agent
 
 An agent updates itself by **running the installer again**, not by downloading
@@ -363,8 +442,8 @@ An agent updates itself by **running the installer again**, not by downloading
 
 Every answer this server gives carries the version it would hand out. When that
 differs from the version the agent is running, the agent fetches its own
-installer — `/agent/linux/install.sh`, or `/agent/windows/install.ps1` — and
-runs it with no arguments. The installer,
+installer — `/agent/linux/install.sh`, `/agent/macos/install.sh` or
+`/agent/windows/install.ps1` — and runs it with no arguments. The installer,
 which is always the newest version of the whole job, does the rest: download,
 sanity-check, atomic replace, re-register the schedule. Install and update are
 one code path, so they cannot drift apart, and a bug in the update path is a bug
