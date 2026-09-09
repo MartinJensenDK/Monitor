@@ -231,22 +231,75 @@ services, listening ports — and fills the **Servers** and **Clients** pages.
 Make an enrolment key under **Enrolment** in the sidebar, then run one command
 on the machine. The page prints it with your address and key already in it:
 
+**Linux**
+
 ```sh
 curl -fsSLO https://monitor.example.com/agent/linux/install.sh
 sudo sh install.sh --key mek_...
 ```
+
+**macOS**
+
+```sh
+curl -fsSLO https://monitor.example.com/agent/macos/install.sh
+sudo sh install.sh --key mek_...
+```
+
+**Windows**
 
 ```powershell
 irm https://monitor.example.com/agent/windows/install.ps1 -OutFile install.ps1
 .\install.ps1 -Key mek_...
 ```
 
-The agent needs `curl` and root on Linux, or an elevated PowerShell on Windows,
-and nothing else — no runtime is installed. It connects outward only, so nothing
-is opened on the machine. Reports are pruned by the same cron entry as
+macOS and Linux run the same script — one agent covers both, and it works out
+which it is on. On macOS it is a launchd job; on Linux, a systemd timer; on
+Windows, a scheduled task.
+
+The agent needs `curl` and root on Linux or macOS, or an elevated PowerShell on
+Windows, and nothing else — no runtime is installed. It connects outward only, so
+nothing is opened on the machine. Reports are pruned by the same cron entry as
 everything else, so there is nothing further to set up here.
 
-[AGENT.md](AGENT.md) covers the options, the enrolment keys, the four commands a
+### What the machine agrees to, at install time
+
+The command above installs an agent that only reports. Anything that *changes*
+the machine has to be allowed on the machine, when it is installed:
+
+```sh
+sudo sh install.sh --key mek_... --allow-updates --allow-reboot
+```
+
+```powershell
+.\install.ps1 -Key mek_... -AllowUpdates -AllowReboot
+```
+
+This is not a setting in the interface, and it deliberately cannot be. Monitor
+can be told to stop offering something, never to start: a machine installed
+without `--allow-updates` refuses the request no matter what this site says.
+Changing its mind means running the installer again on the machine — without a
+key, which keeps its enrolment:
+
+```sh
+sudo sh install.sh --allow-reboot
+```
+
+Permissions survive an update, so re-running without any of these flags takes
+nothing away. `--no-allow-updates` and `--no-allow-reboot` are how a permission
+is actually withdrawn.
+
+### Settings for the whole fleet
+
+**Settings → Agent** holds the defaults a new machine enrols with — how often it
+reports, how often it checks for a queued command, how much it logs — and two
+switches that apply to every machine at once: whether agent updates are offered
+at all, and whether commands are allowed at all. Those two can only withhold; the
+machine's own consent is still the second key. The page also prints the install
+commands for all three platforms with this site's address already in them, and a
+button that writes the current defaults onto machines that already exist, which
+is otherwise something saving the page does not do.
+
+[AGENT.md](AGENT.md) covers the options, the enrolment keys, the five commands a
 machine can be asked to carry out, and what happens when one goes quiet.
 
 ## Signing in with Microsoft
@@ -334,6 +387,13 @@ Back up `.env` together with your database dump.
 2. Replace the files, keeping `.env` and `storage/`.
 3. `php bin/migrate.php`
 4. `php bin/migrate.php --status` to confirm.
+
+New files include a new agent, and the machines fetch it themselves: at its next
+report each one sees that this site holds a newer version, and re-runs its own
+installer as the last thing that run does. Nothing needs doing per machine, and
+they arrive over the following few minutes rather than together. A machine
+installed with `--no-self-update` stays where it is and says so on its page, and
+so does the whole fleet while **Settings → Agent** has updates switched off.
 
 ---
 
