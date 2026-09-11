@@ -156,6 +156,10 @@ return [
     'incident.ongoing' => 'Igangværende',
     'incident.acknowledged_by' => 'Kvitteret af :name',
     'incident.none' => 'Ingen hændelser. Alle overvågninger har svaret på alle tjek.',
+    'incident.acknowledge_all' => 'Kvittér for alle',
+    'incident.acknowledge_all_one' => 'Kvittér for den ene hændelse, som ingen har kvitteret for endnu?',
+    'incident.acknowledge_all_many' => 'Kvittér for alle :count hændelser, som ingen har kvitteret for endnu?',
+    'incident.acknowledge_all_detail' => 'Hver enkelt markeres som kvitteret af dig. Kun hændelser på overvågninger, du kan redigere, er med, og en hændelse, der starter efter siden blev indlæst, bliver ikke rørt.',
 
     'access.none' => 'Ingen adgang',
     'access.view' => 'Kan se',

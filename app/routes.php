@@ -102,6 +102,7 @@ return static function (Router $router): void {
     $router->get('/incidents', [IncidentsController::class, 'index'])->can('incidents.view');
     $router->post('/incidents/{id}/acknowledge', [IncidentsController::class, 'acknowledge'])->can('incidents.acknowledge');
 
+    $router->post('/incidents/acknowledge-all', [IncidentsController::class, 'acknowledgeAll'])->can('incidents.acknowledge');
     // People and access
     $router->get('/users', [UsersController::class, 'index'])->can('users.view');
     $router->get('/users/new', [UsersController::class, 'create'])->can('users.manage');

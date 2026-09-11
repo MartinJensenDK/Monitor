@@ -144,6 +144,79 @@ final class Incidents
         ], ['id' => $id]);
     }
 
+    /**
+     * What "Acknowledge all" would take, counted before anybody presses it:
+     * how many, and the newest of them.
+     *
+     * The newest id is the point. It travels with the form, so pressing the
+     * button acknowledges what was on the screen and nothing that opened in
+     * the meantime -- an incident that started a second after the page loaded
+     * has not been seen by anybody, and marking it seen would be saying so in
+     * their name.
+     *
+     * @return array{count:int,upTo:int}
+     */
+    public static function acknowledgeable(string $status = 'all'): array
+    {
+        [$sql, $params] = self::acknowledgeableScope($status);
+        $row = Db::selectOne('SELECT COUNT(*) AS n, COALESCE(MAX(i.`id`), 0) AS up_to ' . $sql, $params);
+
+        return ['count' => (int) ($row['n'] ?? 0), 'upTo' => (int) ($row['up_to'] ?? 0)];
+    }
+
+    /**
+     * Acknowledge what acknowledgeable() counted, up to and including $upTo.
+     *
+     * @return array{count:int,ids:array<int,int>} how many were acknowledged, and which were considered
+     */
+    public static function acknowledgeAll(string $status, int $upTo): array
+    {
+        [$sql, $params] = self::acknowledgeableScope($status);
+        $params['up_to'] = $upTo;
+
+        $ids = array_map('intval', array_column(
+            Db::select('SELECT i.`id` ' . $sql . ' AND i.`id` <= :up_to', $params),
+            'id'
+        ));
+        if ($ids === []) {
+            return ['count' => 0, 'ids' => []];
+        }
+
+        // Still unacknowledged at the moment of writing, so somebody who got
+        // there first -- by this button or by a row -- keeps their name on it.
+        $count = Db::execute(
+            'UPDATE {{incidents}} SET `acknowledged_by` = ?, `acknowledged_at` = ?
+             WHERE `acknowledged_at` IS NULL AND `id` IN (' . implode(',', $ids) . ')',
+            [Auth::id(), gmdate('Y-m-d H:i:s')]
+        );
+
+        return ['count' => $count, 'ids' => $ids];
+    }
+
+    /**
+     * FROM and WHERE for the incidents this person may acknowledge: not yet
+     * acknowledged, on a monitor they can both see and edit. The same two
+     * checks the single Acknowledge button makes, as SQL -- so "all" can never
+     * reach an incident one press at a time could not.
+     *
+     * @return array{0:string,1:array<string,mixed>}
+     */
+    private static function acknowledgeableScope(string $status): array
+    {
+        [$visible, $visibleParams] = MonitorScope::visible('m');
+        [$editable, $editableParams] = MonitorScope::editable('m');
+        $params = $visibleParams + $editableParams;
+
+        $sql = 'FROM {{incidents}} i JOIN {{monitors}} m ON m.`id` = i.`monitor_id`
+                WHERE i.`acknowledged_at` IS NULL AND (' . $visible . ') AND (' . $editable . ')';
+        if ($status === 'open' || $status === 'resolved') {
+            $sql .= ' AND i.`status` = :istatus';
+            $params['istatus'] = $status;
+        }
+
+        return [$sql, $params];
+    }
+
     public static function openCount(): int
     {
         [$scope, $params] = MonitorScope::visible('m');

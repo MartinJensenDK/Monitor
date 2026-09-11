@@ -166,6 +166,10 @@ return [
     'incident.ongoing' => 'Ongoing',
     'incident.acknowledged_by' => 'Acknowledged by :name',
     'incident.none' => 'No incidents. Every monitor has answered every check.',
+    'incident.acknowledge_all' => 'Acknowledge all',
+    'incident.acknowledge_all_one' => 'Acknowledge the one incident nobody has acknowledged yet?',
+    'incident.acknowledge_all_many' => 'Acknowledge all :count incidents nobody has acknowledged yet?',
+    'incident.acknowledge_all_detail' => 'Each is marked as acknowledged by you. Only incidents on monitors you can edit are included, and one that starts after this page was loaded is left alone.',
 
     // Access
     'access.none' => 'No access',

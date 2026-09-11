@@ -3,7 +3,10 @@
  * @var array<int,array<string,mixed>> $incidents
  * @var string $status
  * @var int $openCount
+ * @var array{count:int,upTo:int} $acknowledgeable
  */
+
+$acknowledgeable = $acknowledgeable ?? ['count' => 0, 'upTo' => 0];
 ?>
 <section class="panel">
     <div class="panel__head">
@@ -11,10 +14,30 @@
             <p class="eyebrow"><?= (int) $openCount ?> open</p>
             <h2>Every interruption, newest first</h2>
         </div>
-        <div class="seg">
-            <?php foreach (['all' => 'All', 'open' => 'Open', 'resolved' => 'Resolved'] as $value => $label): ?>
-                <a href="/incidents?status=<?= e($value) ?>" aria-current="<?= $status === $value ? 'true' : 'false' ?>"><?= e($label) ?></a>
-            <?php endforeach; ?>
+        <div class="btn-row">
+            <div class="seg">
+                <?php foreach (['all' => 'All', 'open' => 'Open', 'resolved' => 'Resolved'] as $value => $label): ?>
+                    <a href="/incidents?status=<?= e($value) ?>" aria-current="<?= $status === $value ? 'true' : 'false' ?>"><?= e($label) ?></a>
+                <?php endforeach; ?>
+            </div>
+
+            <?php // Only when there is something it would do: a button that
+                  // acknowledges nothing is a question with no answer. The
+                  // count and the newest id were taken as this page was drawn,
+                  // so what gets acknowledged is what was on the screen. ?>
+            <?php if ($acknowledgeable['count'] > 0): ?>
+                <form method="post" action="/incidents/acknowledge-all"
+                      data-confirm="<?= e($acknowledgeable['count'] === 1
+                          ? t('incident.acknowledge_all_one')
+                          : t('incident.acknowledge_all_many', ['count' => $acknowledgeable['count']])) ?>"
+                      data-confirm-detail="<?= e(t('incident.acknowledge_all_detail')) ?>"
+                      data-confirm-label="<?= e(t('incident.acknowledge_all')) ?>">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="status" value="<?= e($status) ?>">
+                    <input type="hidden" name="up_to" value="<?= (int) $acknowledgeable['upTo'] ?>">
+                    <button class="btn btn--sm" type="submit"><?= icon('check') ?><?= e(t('incident.acknowledge_all')) ?></button>
+                </form>
+            <?php endif; ?>
         </div>
     </div>
 
