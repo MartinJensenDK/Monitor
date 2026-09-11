@@ -186,8 +186,9 @@ $viewLink = static function (string $wanted) use ($base, $filters): string {
                     <span class="eyebrow" style="text-align:right;"><?= e(t('device.last_seen')) ?></span>
                     <span></span>
                 </div>
+                <?php $here = $viewLink('list'); ?>
                 <?php foreach ($devices as $device): ?>
-                    <?= View::partial('partials/device-row', ['device' => $device]) ?>
+                    <?= View::partial('partials/device-row', ['device' => $device, 'returnTo' => $here]) ?>
                 <?php endforeach; ?>
             </div>
         <?php else: ?>

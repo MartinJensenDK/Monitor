@@ -295,7 +295,27 @@ final class DevicesController extends Controller
     }
 
     /**
-     * Queue one of the four named commands.
+     * Where to go once a command is queued.
+     *
+     * A command asked for from a fleet list goes back to that list, filters and
+     * all, rather than dropping somebody onto one machine's page while they
+     * were working down twenty. Only the two lists are accepted. Anything else
+     * -- including anything that is not a path on this site, which is how a
+     * "return" field becomes an open redirect -- goes to the machine's page.
+     *
+     * @param array<string,mixed> $device
+     */
+    private function returnTo(Request $request, array $device): string
+    {
+        $asked = (string) $request->input('return', '');
+
+        return preg_match('#^/(servers|clients)(\?[^\s\\\\]*)?$#', $asked) === 1
+            ? $asked
+            : '/devices/' . $device['uuid'];
+    }
+
+    /**
+     * Queue one of the five named commands.
      */
     public function command(Request $request): Response
     {
@@ -309,7 +329,7 @@ final class DevicesController extends Controller
         if ((int) $device['commands_enabled'] !== 1) {
             $this->error('Commands are switched off for this machine.');
 
-            return $this->redirect('/devices/' . $device['uuid']);
+            return $this->redirect($this->returnTo($request, $device));
         }
 
         // The two that change a machine are an administrator's call, on top of
@@ -339,8 +359,9 @@ final class DevicesController extends Controller
         // which is how "I pressed the button and nothing happened" happens.
         if ((string) $device['status'] === 'online') {
             $this->success(sprintf(
-                '%s queued. It runs at the next check-in.',
-                DeviceCommands::label($command)
+                '%s queued for %s. It runs at the next check-in.',
+                DeviceCommands::label($command),
+                $device['name']
             ));
         } else {
             $this->warn(sprintf(
@@ -351,7 +372,7 @@ final class DevicesController extends Controller
             ));
         }
 
-        return $this->redirect('/devices/' . $device['uuid']);
+        return $this->redirect($this->returnTo($request, $device));
     }
 
     public function cancelCommand(Request $request): Response

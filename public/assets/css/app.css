@@ -2543,6 +2543,23 @@ code {
 .tag--warn { border-color: var(--warn); color: var(--warn); }
 .tag--down { border-color: var(--down); color: var(--down); }
 
+/* A tag that is also a button: the ones in a list's Waiting column that can be
+   acted on from there. It keeps the tag's shape -- it is first of all a thing
+   being said -- and admits to being pressable only on hover and focus. The
+   focus ring is drawn inside, because the column clips anything outside it. */
+.tag-form { display: inline-flex; margin: 0; }
+
+.tag--action {
+    font: inherit;
+    font-size: 11px;
+    background: transparent;
+    cursor: pointer;
+    transition: background-color .12s ease;
+}
+
+.tag--action:hover { background: var(--panel-3); }
+.tag--action:focus-visible { outline-offset: -2px; }
+
 /* ── A machine's page ───────────────────────────────────────────────── */
 
 .devhead { display: flex; align-items: flex-start; gap: 12px; }

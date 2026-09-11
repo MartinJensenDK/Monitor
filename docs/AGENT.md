@@ -238,6 +238,17 @@ about this screen, not a fact about the fleet, and it follows the same pattern
 the theme does. Every machine carries the icon of what it runs, and the list has
 a column for the agent version, marked when this server holds a newer one.
 
+The list's **Waiting** column can be acted on from where it stands. Updates
+waiting and a restart owed are buttons as well as tags: press one and a dialog
+names the machine and says what will happen — how many updates, or that anyone
+using it will be interrupted — before anything is queued. They are offered
+exactly where the same button on the machine's own page would be: to somebody
+who may change that machine, with commands on for it, for something it agreed
+to at install. A machine that will refuse keeps a plain tag, whose tooltip names
+the flag it was installed without. Once queued, the page comes back to the list
+it was pressed on, filters and all, and the notice names the machine — from a
+list of twenty, "Restart queued" would not say which.
+
 ---
 
 ## Asking a machine to do something
