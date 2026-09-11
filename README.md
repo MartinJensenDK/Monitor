@@ -75,7 +75,11 @@ started looking at.
 
 **Servers** and **Clients** read as cards or as a list, whichever was chosen
 last, each machine marked with the icon of what it runs, and the list carrying a
-column for the agent version installed and whether a newer one is waiting.
+column for the agent version installed and whether a newer one is waiting. Both
+keep themselves current while they are open — updates finishing, a machine
+coming back from a restart — and the list's **Waiting** column can be acted on
+from where it stands, after a dialog that names the machine and says what will
+happen.
 
 On Debian and Ubuntu, what the site counts as waiting is what the machine's own
 `apt list --upgradable` shows — including the updates a plain `apt-get upgrade`
@@ -109,7 +113,9 @@ way: the machine said one update was waiting and the site said none. See
 - **Charts** — response time with p95, outages painted behind the line, 30 days of
   daily uptime bars, an availability donut and a certificate-expiry meter.
 - **Incidents** — opened only after a failure survives its retries, closed
-  automatically on recovery, with duration and cause. Acknowledgeable.
+  automatically on recovery, with duration and cause. Acknowledged one at a
+  time, or all at once — which takes only what was on the screen, never an
+  incident that opened after the page was loaded.
 - **Roles and groups** — a role sets what a person may do; group membership sets
   which monitors they may do it to.
 - **Microsoft Entra ID** — sign in with a work account, and mirror directory

@@ -43,6 +43,29 @@ final class DevicesController extends Controller
     {
         $this->requireTable();
 
+        return $this->view($request, 'pages/devices', [
+            'title' => $kind === Devices::KIND_SERVER ? t('nav.servers') : t('nav.clients'),
+            'locations' => Devices::locationsWithDevices($kind),
+            'groups' => Groups::assignable(),
+        ] + $this->listData($request, $kind));
+    }
+
+    /**
+     * What a fleet list and its figures are drawn from.
+     *
+     * Shared by the page and by listLive(), so what arrives a minute later is
+     * built from exactly the same things as what was painted at the start --
+     * the filters read the same way, the same rows, the same summary.
+     *
+     * listQuery is the filters as a query string's worth of pairs, the empty
+     * ones left out. It is worked out once, here, because three things need
+     * it and each would otherwise spell it for itself: the view toggle, the
+     * address a command comes back to, and the address the page polls.
+     *
+     * @return array<string,mixed>
+     */
+    private function listData(Request $request, string $kind): array
+    {
         $filters = [
             'status' => (string) $request->query('status', ''),
             'os' => (string) $request->query('os', ''),
@@ -51,20 +74,58 @@ final class DevicesController extends Controller
             'q' => (string) $request->query('q', ''),
         ];
 
-        $isServers = $kind === Devices::KIND_SERVER;
+        $listQuery = array_filter([
+            'q' => $filters['q'],
+            'status' => $filters['status'],
+            'os' => $filters['os'],
+            'group' => $filters['group'] > 0 ? (string) $filters['group'] : '',
+            'location' => $filters['location'] > 0 ? (string) $filters['location'] : '',
+        ], static fn (string $value): bool => $value !== '');
 
-        return $this->view($request, 'pages/devices', [
-            'title' => $isServers ? t('nav.servers') : t('nav.clients'),
+        return [
             'kind' => $kind,
             'devices' => Devices::visible($kind, $filters),
             'summary' => Devices::summary($kind),
             'filters' => $filters,
+            'listQuery' => $listQuery,
             'view' => $this->deviceView($request),
-            'locations' => Devices::locationsWithDevices($kind),
-            'groups' => Groups::assignable(),
             // Nothing has enrolled yet and there is no way to start: the empty
             // state should say how, not just that the list is empty.
             'hasKeys' => EnrollmentKeys::anyActive(),
+        ];
+    }
+
+    /**
+     * The Servers or Clients list, rendered again for a page that is open.
+     *
+     * An update lands, a machine comes back from a restart, and the list that
+     * has been open all along says so without being reloaded. The figures and
+     * the list are rendered through the same partials the page used, and sent
+     * whole; the page swaps them in. Unchanged since the last ask costs a 304,
+     * the same bargain /api/live makes with the dashboard.
+     */
+    public function listLive(Request $request): Response
+    {
+        $this->requireTable();
+
+        $kind = (string) $request->query('kind', '') === Devices::KIND_CLIENT
+            ? Devices::KIND_CLIENT
+            : Devices::KIND_SERVER;
+        $data = $this->listData($request, $kind);
+
+        $payload = [
+            'stats' => View::partial('partials/device-stats', $data),
+            'body' => View::partial('partials/device-list-body', $data),
+        ];
+
+        $etag = '"' . substr(sha1($payload['stats'] . $payload['body']), 0, 20) . '"';
+        if ($request->header('If-None-Match') === $etag) {
+            return Response::notModified($etag);
+        }
+
+        return Response::json($payload, 200, [
+            'ETag' => $etag,
+            'Cache-Control' => 'private, no-cache',
         ]);
     }
 

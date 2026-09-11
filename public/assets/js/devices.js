@@ -265,4 +265,89 @@
     }
 
     document.querySelectorAll('[data-log]').forEach(startLog);
+
+    // ----------------------------------------------------------- the lists ---
+    //
+    // Servers and Clients, kept current while they are open: an update lands,
+    // a machine comes back from a restart, and the list says so without being
+    // reloaded. The server renders the figures and the machines through the
+    // same partials the page was drawn with, and this only swaps them in.
+    // Nothing changed since the last ask costs a 304.
+
+    var fleet = document.querySelector('[data-devlist-src]');
+    if (fleet) {
+        var FLEET_MS = 10000;
+        var fleetSrc = fleet.getAttribute('data-devlist-src');
+        var fleetTag = null;
+        var fleetTimer = null;
+        var fleetFailures = 0;
+
+        // Not while somebody is in the middle of something a swap would take
+        // from under them. A confirmation dialog is the one that matters: its
+        // button replays a click on a row, and a row that has been replaced
+        // in the meantime is no longer in the page to be clicked.
+        var fleetBusy = function () {
+            if (document.querySelector('dialog[open]')) return true;
+            var active = document.activeElement;
+            return !!(active && active !== document.body && active.closest
+                && (active.closest('[data-devlist-body]') || active.closest('[data-devlist-stats]')));
+        };
+
+        // Each part arrives as one element with its marker on it, so it
+        // replaces whichever one is showing -- the empty state, the list or
+        // the cards -- rather than being poured into a wrapper.
+        var swapPart = function (selector, html) {
+            var current = document.querySelector(selector);
+            if (!current || typeof html !== 'string') return;
+
+            var template = document.createElement('template');
+            template.innerHTML = html.trim();
+            var fresh = template.content.firstElementChild;
+            if (!fresh || fresh.outerHTML === current.outerHTML) return;
+
+            current.replaceWith(fresh);
+        };
+
+        var scheduleFleet = function () {
+            if (fleetTimer) window.clearTimeout(fleetTimer);
+            // Backs off when the answers stop coming, up to a minute.
+            fleetTimer = window.setTimeout(pollFleet, FLEET_MS * Math.min(6, Math.pow(2, fleetFailures)));
+        };
+
+        var pollFleet = function () {
+            fleetTimer = null;
+            // A hidden tab asks for nothing; it catches up when it is looked at.
+            if (document.hidden) return;
+
+            var headers = { 'Accept': 'application/json' };
+            if (fleetTag) headers['If-None-Match'] = fleetTag;
+
+            fetch(fleetSrc, { headers: headers, credentials: 'same-origin' })
+                .then(function (response) {
+                    if (response.status === 304) return null;
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    var tag = response.headers.get('ETag');
+                    return response.json().then(function (data) { return { tag: tag, data: data }; });
+                })
+                .then(function (answer) {
+                    fleetFailures = 0;
+                    // Busy: leave the tag where it was, so the next ask gets
+                    // this answer again instead of a 304 that would lose it.
+                    if (!answer || fleetBusy()) return;
+
+                    swapPart('[data-devlist-stats]', answer.data.stats);
+                    swapPart('[data-devlist-body]', answer.data.body);
+                    fleetTag = answer.tag;
+                    refresh();
+                })
+                .catch(function () { fleetFailures++; })
+                .then(scheduleFleet);
+        };
+
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) pollFleet();
+        });
+
+        scheduleFleet();
+    }
 }());

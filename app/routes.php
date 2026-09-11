@@ -72,6 +72,7 @@ return static function (Router $router): void {
     $router->post('/devices/enrollment/{id}/delete', [EnrollmentController::class, 'destroy'])->can('devices.enroll');
 
     $router->get('/devices/{uuid}', [DevicesController::class, 'show'])->can('devices.view');
+    $router->get('/api/devices/list', [DevicesController::class, 'listLive'])->can('devices.view');
     $router->get('/api/devices/{uuid}/logs', [DevicesController::class, 'logs'])->can('devices.view');
     $router->get('/devices/{uuid}/edit', [DevicesController::class, 'edit'])->can('devices.manage');
     $router->post('/devices/{uuid}', [DevicesController::class, 'update'])->can('devices.manage');
@@ -101,8 +102,8 @@ return static function (Router $router): void {
     // Incidents
     $router->get('/incidents', [IncidentsController::class, 'index'])->can('incidents.view');
     $router->post('/incidents/{id}/acknowledge', [IncidentsController::class, 'acknowledge'])->can('incidents.acknowledge');
-
     $router->post('/incidents/acknowledge-all', [IncidentsController::class, 'acknowledgeAll'])->can('incidents.acknowledge');
+
     // People and access
     $router->get('/users', [UsersController::class, 'index'])->can('users.view');
     $router->get('/users/new', [UsersController::class, 'create'])->can('users.manage');

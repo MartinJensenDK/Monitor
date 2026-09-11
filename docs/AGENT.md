@@ -249,6 +249,15 @@ the flag it was installed without. Once queued, the page comes back to the list
 it was pressed on, filters and all, and the notice names the machine — from a
 list of twenty, "Restart queued" would not say which.
 
+Both pages keep themselves current while they are open. Every ten seconds the
+page asks `/api/devices/list` for itself again — same kind, same filters, same
+view — and gets back the four figures and the machines, rendered through the
+same two partials the page was drawn with. Nothing changed costs a 304. A
+hidden tab asks for nothing and catches up when it is looked at, and the page
+will not swap anything while a confirmation dialog is open or focus is inside
+the list: the dialog's button replays a click on a row, and a row replaced in
+the meantime is no longer there to be clicked.
+
 ---
 
 ## Asking a machine to do something
