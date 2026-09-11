@@ -42,12 +42,126 @@ final class DevicesController extends Controller
     private function index(Request $request, string $kind): Response
     {
         $this->requireTable();
+        $data = $this->listData($request, $kind);
 
         return $this->view($request, 'pages/devices', [
             'title' => $kind === Devices::KIND_SERVER ? t('nav.servers') : t('nav.clients'),
             'locations' => Devices::locationsWithDevices($kind),
             'groups' => Groups::assignable(),
-        ] + $this->listData($request, $kind));
+            // Whether "Check for updates" has anybody on this list to ask. A
+            // button that could only ever answer "none of these" is not shown.
+            'checkable' => Auth::can('devices.command') ? count($this->checkableForUpdates($data['devices'])) : 0,
+        ] + $data);
+    }
+
+    public function checkServerUpdates(Request $request): Response
+    {
+        return $this->checkUpdates($request, Devices::KIND_SERVER);
+    }
+
+    public function checkClientUpdates(Request $request): Response
+    {
+        return $this->checkUpdates($request, Devices::KIND_CLIENT);
+    }
+
+    /**
+     * The machines on a list that "Check for updates" may ask.
+     *
+     * What the same button on a machine's own page needs: somebody who may
+     * change that machine, commands on for it, and a machine still able to
+     * collect a command at all. Nothing about consent at install -- a check
+     * installs nothing, and no agent is installed to refuse one.
+     *
+     * One definition, used both for whether the button is shown and for what
+     * pressing it does, so the two cannot come to disagree.
+     *
+     * @param array<int,array<string,mixed>> $devices
+     * @return array<int,array<string,mixed>>
+     */
+    private function checkableForUpdates(array $devices): array
+    {
+        return array_values(array_filter(
+            $devices,
+            static fn (array $device): bool => (string) $device['status'] !== 'disabled'
+                && (int) $device['commands_enabled'] === 1
+                && Devices::canEdit($device)
+        ));
+    }
+
+    /**
+     * Ask every machine on a list to check for updates.
+     *
+     * The list is worked out again from the filters the page was showing
+     * rather than taken from the form, so the form cannot name a machine the
+     * list would not have shown. A machine that joined in the meantime is
+     * asked as well, which for a command that changes nothing is harmless.
+     * One that already has a check waiting is not given a second.
+     */
+    private function checkUpdates(Request $request, string $kind): Response
+    {
+        $this->requireTable();
+
+        $data = $this->listData($request, $kind);
+        $back = ($kind === Devices::KIND_SERVER ? '/servers' : '/clients')
+            . '?' . http_build_query($data['listQuery'] + ['view' => $data['view']]);
+
+        $checkable = $this->checkableForUpdates($data['devices']);
+        $waiting = DeviceCommands::waitingFor(
+            array_map(static fn (array $device): int => (int) $device['id'], $checkable),
+            'refresh_updates'
+        );
+
+        $asked = [];
+        $quiet = 0;
+        foreach ($checkable as $device) {
+            $id = (int) $device['id'];
+            if (in_array($id, $waiting, true)) {
+                continue;
+            }
+
+            DeviceCommands::queue($id, 'refresh_updates');
+            Devices::recordEvent(
+                $id,
+                'command_queued',
+                sprintf('%s queued "%s".', Auth::user()['name'] ?? 'Somebody', DeviceCommands::label('refresh_updates')),
+                'info'
+            );
+            $asked[] = $id;
+            if ((string) $device['status'] !== 'online') {
+                $quiet++;
+            }
+        }
+
+        if ($asked === []) {
+            $this->warn($checkable === []
+                ? 'None of the machines in this list can be asked: commands are off for them, or they are not yours to change.'
+                : 'Every machine in this list already has a check for updates waiting.');
+
+            return $this->redirect($back);
+        }
+
+        $count = count($asked);
+        AuditLog::record(
+            'device.command',
+            'device',
+            null,
+            sprintf('Queued "Check for updates" for %d machine%s at once', $count, $count === 1 ? '' : 's'),
+            ['ids' => $asked]
+        );
+
+        // Said plainly, because the two numbers somebody would otherwise wonder
+        // about are the ones that did not go the ordinary way.
+        $message = sprintf('Asked %d machine%s to check for updates at the next check-in.', $count, $count === 1 ? '' : 's');
+        $already = count($checkable) - $count;
+        if ($already > 0) {
+            $message .= sprintf(' %d already had one waiting.', $already);
+        }
+        if ($quiet > 0) {
+            $message .= sprintf(' %d %s not reporting right now and will run it on coming back, within the hour.', $quiet, $quiet === 1 ? 'is' : 'are');
+        }
+        $this->success($message);
+
+        return $this->redirect($back);
     }
 
     /**

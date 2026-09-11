@@ -258,6 +258,31 @@ final class DeviceCommands
         );
     }
 
+    /**
+     * Which of these machines already have $command waiting: queued or
+     * collected, and not yet expired -- the same test the agent collects by.
+     *
+     * One query for a whole list, so asking twenty machines at once does not
+     * begin with twenty questions.
+     *
+     * @param array<int,int> $deviceIds
+     * @return array<int,int>
+     */
+    public static function waitingFor(array $deviceIds, string $command): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $deviceIds)));
+        if ($ids === []) {
+            return [];
+        }
+
+        return array_map('intval', array_column(Db::select(
+            'SELECT DISTINCT `device_id` FROM {{device_commands}}
+             WHERE `command` = ? AND `status` IN (\'queued\',\'claimed\') AND `expires_at` > UTC_TIMESTAMP()
+               AND `device_id` IN (' . implode(',', $ids) . ')',
+            [$command]
+        ), 'device_id'));
+    }
+
     public static function queuedCount(int $deviceId): int
     {
         return (int) Db::value(

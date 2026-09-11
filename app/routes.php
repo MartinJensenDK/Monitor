@@ -64,6 +64,9 @@ return static function (Router $router): void {
     // nobody can walk the list by counting.
     $router->get('/servers', [DevicesController::class, 'servers'])->can('devices.view');
     $router->get('/clients', [DevicesController::class, 'clients'])->can('devices.view');
+    // Under the list rather than /devices/..., where /devices/{uuid} would take it.
+    $router->post('/servers/check-updates', [DevicesController::class, 'checkServerUpdates'])->can('devices.command');
+    $router->post('/clients/check-updates', [DevicesController::class, 'checkClientUpdates'])->can('devices.command');
 
     // Declared before /devices/{uuid}, which would otherwise swallow it.
     $router->get('/devices/enrollment', [EnrollmentController::class, 'index'])->can('devices.enroll');

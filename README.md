@@ -79,7 +79,8 @@ column for the agent version installed and whether a newer one is waiting. Both
 keep themselves current while they are open — updates finishing, a machine
 coming back from a restart — and the list's **Waiting** column can be acted on
 from where it stands, after a dialog that names the machine and says what will
-happen.
+happen. One button above the list asks every machine on it, as filtered, to
+check for updates.
 
 On Debian and Ubuntu, what the site counts as waiting is what the machine's own
 `apt list --upgradable` shows — including the updates a plain `apt-get upgrade`

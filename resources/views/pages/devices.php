@@ -89,6 +89,22 @@ $viewLink = static function (string $wanted) use ($base, $listQuery): string {
             </form>
 
             <div class="btn-row">
+                <?php // One button for the whole list, as it is filtered: the
+                      // filters travel in the address, and the server works
+                      // the list out again from them rather than trusting a
+                      // list of machines sent by the page. Not shown when
+                      // there is nobody on this list it could ask. ?>
+                <?php if (($checkable ?? 0) > 0): ?>
+                    <form method="post"
+                          action="<?= e($base . '/check-updates?' . http_build_query($listQuery + ['view' => $view])) ?>"
+                          data-confirm="<?= e(t('device.check_updates_all_confirm')) ?>"
+                          data-confirm-detail="<?= e(t('device.check_updates_all_detail')) ?>"
+                          data-confirm-label="<?= e(t('device.check_updates_all')) ?>">
+                        <?= csrf_field() ?>
+                        <button class="btn" type="submit"><?= icon('history') ?><?= e(t('device.check_updates_all')) ?></button>
+                    </form>
+                <?php endif; ?>
+
                 <span class="viewtoggle" role="group" aria-label="<?= e(t('device.view')) ?>">
                     <?php foreach ([
                         'cards' => ['icon' => 'grid', 'label' => t('device.view_cards')],

@@ -258,6 +258,16 @@ will not swap anything while a confirmation dialog is open or focus is inside
 the list: the dialog's button replays a click on a row, and a row replaced in
 the meantime is no longer there to be clicked.
 
+**Check for updates** sits above the list and asks every machine on it, as
+filtered, at once. It asks the machines somebody may change, with commands on,
+that can still collect a command, and skips any that already have a check
+waiting. It needs no consent at install — a check installs nothing — so an
+editor can use it on their own machines. When it is pressed, the list is worked
+out again from the filters rather than taken from the page, so the form cannot
+name a machine the list would not have shown; and the notice says how many were
+asked, how many already had one waiting, and how many are not reporting and
+will run it when they come back within the hour.
+
 ---
 
 ## Asking a machine to do something
