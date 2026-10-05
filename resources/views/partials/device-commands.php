@@ -28,7 +28,12 @@ use App\Domain\DeviceCommands;
                                 <?php // data-since keeps "4m ago" honest on a page left open, the
                                       // same way the machine lists do. ?>
                                 <span data-since="<?= e((string) $command['requested_at']) ?>"><?= e(format_since((string) $command['requested_at'])) ?></span>
-                                <?= empty($command['requested_by_name']) ? '' : ' · ' . e((string) $command['requested_by_name']) ?>
+                                <?php // A person, or the update policy that asked in their place. ?>
+                                <?php if (!empty($command['requested_by_name'])): ?>
+                                    · <?= e((string) $command['requested_by_name']) ?>
+                                <?php elseif (!empty($command['policy_name'])): ?>
+                                    · <?= e(t('policy.queued_by', ['name' => (string) $command['policy_name']])) ?>
+                                <?php endif; ?>
                             </span>
                             <?php if (!empty($command['error'])): ?>
                                 <span class="muted block truncate" title="<?= e((string) $command['error']) ?>"><?= e((string) $command['error']) ?></span>

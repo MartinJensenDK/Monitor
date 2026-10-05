@@ -28,6 +28,7 @@ use App\Core\Db;
 use App\Entra\Sync;
 use App\Domain\DeviceCommands;
 use App\Domain\Devices;
+use App\Domain\UpdatePolicies;
 use App\Notifications\CertificateWatcher;
 use App\Scheduler\Retention;
 use App\Scheduler\Rollup;
@@ -87,6 +88,14 @@ try {
         if ($verbose && $moved !== []) {
             foreach ($moved as $status => $count) {
                 echo sprintf("  devices: %d moved to %s\n", $count, $status);
+            }
+        }
+
+        // Automatic updates: once a minute, after the statuses above are
+        // fresh, so a machine that has just gone quiet is known to be quiet.
+        foreach (UpdatePolicies::run() as $line) {
+            if ($verbose) {
+                echo '  updates: ' . $line . "\n";
             }
         }
 

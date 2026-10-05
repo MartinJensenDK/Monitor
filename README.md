@@ -82,6 +82,14 @@ from where it stands, after a dialog that names the machine and says what will
 happen. One button above the list asks every machine on it, as filtered, to
 check for updates.
 
+**Automatic updates** turn those buttons into a schedule. An update policy
+checks for updates on the weekdays and at the time you choose, installs them on
+others, and — only if you switch it on — restarts a machine afterwards when the
+machine says it needs one. Each machine follows at most one policy. A policy
+queues exactly what a person could, and only where the machine agreed at
+install: installing needs `--allow-updates`, restarting `--allow-reboot`, and
+the policy's page says beforehand which of its machines will refuse.
+
 On Debian and Ubuntu, what the site counts as waiting is what the machine's own
 `apt list --upgradable` shows — including the updates a plain `apt-get upgrade`
 holds back because they need a new package, and the ones Ubuntu is still handing

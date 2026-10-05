@@ -355,9 +355,75 @@ Monitor said none.
 plainly. A machine shown an update it cannot be told to take would leave a
 notice standing until Ubuntu's rollout reached it. So pressing the button takes
 a phased update ahead of its turn — a person deciding not to wait, which is
-theirs to decide. Nothing here installs anything on its own.
+theirs to decide. An update policy's install passes the same options, so a
+policy that installs is that decision made in advance. Nothing installs on its
+own: every install comes from somebody pressing the button, or from a policy
+somebody wrote.
 
 Neither is `dist-upgrade`, which will remove a package to get its way.
+
+---
+
+## Automatic updates
+
+**Automatic updates**, in the administration part of the sidebar, turns the
+buttons into a schedule. An *update policy* names:
+
+| | |
+|---|---|
+| **Check for updates** | Weekdays and a time to ask each machine's update sources for a fresh list |
+| **Install updates** | Weekdays and a time to install what each machine reports as waiting |
+| **Restart afterwards** | Off unless switched on: restart a machine that needs it, once, after a clean install |
+
+Each machine follows **at most one policy**. It is held on the machine rather
+than in a list on the policy, so two policies can never both decide to install
+on the same machine; ticking a machine on a second policy moves it there, and
+the checkbox says so before it is ticked. A machine's own edit page has the
+same choice. Deleting a policy leaves its machines following none.
+
+Times are **wall-clock in the site's time zone** (`APP_TIMEZONE`). The instant
+they name is worked out afresh each day, so a policy set for 03:00 stays at
+03:00 across the change to and from summer time — the gap between the two
+03:00s either side of the October change is 25 hours, and that is checked.
+
+### What a policy will and will not do
+
+A policy queues exactly the named commands a person could, and only where a
+person's press would be accepted:
+
+- **Checking** goes to every machine that follows it, has commands on and is not
+  switched off. A check installs nothing and needs no consent.
+- **Installing** goes only to machines installed with `--allow-updates`, and
+  only to those that report something waiting — as the button installs what is
+  waiting. A machine whose agent is too old to say what it allows is left alone:
+  unattended work rests on consent that was stated, not merely not refused.
+- **Restarting** follows only an install this policy queued that finished
+  cleanly in the last three hours, only on a machine that then reports it needs
+  a restart, and only if it was installed with `--allow-reboot`. Once: any
+  restart asked for after that install, by anybody, counts. A failed upgrade is
+  never followed by a restart.
+
+None of it happens while **commands are switched off for the whole site**, and a
+command a machine already has waiting is not queued twice.
+
+The scheduler looks once a minute. A moment it missed — the server was busy, or
+down briefly — is still acted on up to an hour late, and not after: an install
+window from yesterday afternoon is not the same decision this morning.
+**Saving a policy never fires it** for a moment that has just gone by; a
+schedule begins at its next time after the save.
+
+### Where to see what it did
+
+The list shows each policy's next times, how many machines follow it, how many
+of those will refuse an install or a restart, and what each half did last time
+— "Queued on 3 of 5. 2 had nothing waiting." Each machine's command history
+names the policy where a person's name would be, and its timeline says the
+policy queued it. The machine's own page names the policy it follows and when
+it next acts.
+
+Writing a policy is held by the same permission as pressing **Install updates**
+and **Restart** — administrators — since it is pressing them in advance. For
+the same reason, only they can choose a machine's policy from its edit page.
 
 ---
 

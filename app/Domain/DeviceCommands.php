@@ -126,7 +126,10 @@ final class DeviceCommands
      * month later: a laptop that comes back from a drawer should not start
      * rebooting on the strength of a decision made in another world.
      */
-    public static function queue(int $deviceId, string $command, int $expiresInMinutes = 60): int
+    /**
+     * @param ?int $policyId the update policy asking, when it is one rather than a person
+     */
+    public static function queue(int $deviceId, string $command, int $expiresInMinutes = 60, ?int $policyId = null): int
     {
         return Db::insert('device_commands', [
             'uuid' => Str::uuid4(),
@@ -134,6 +137,7 @@ final class DeviceCommands
             'command' => $command,
             'status' => 'queued',
             'requested_by' => Auth::id() > 0 ? Auth::id() : null,
+            'policy_id' => $policyId,
             'requested_at' => gmdate('Y-m-d H:i:s'),
             'expires_at' => gmdate('Y-m-d H:i:s', time() + max(5, $expiresInMinutes) * 60),
         ]);
@@ -249,9 +253,10 @@ final class DeviceCommands
     public static function recent(int $deviceId, int $limit = 15): array
     {
         return Db::select(
-            'SELECT c.*, u.`name` AS `requested_by_name`
+            'SELECT c.*, u.`name` AS `requested_by_name`, p.`name` AS `policy_name`
              FROM {{device_commands}} c
              LEFT JOIN {{users}} u ON u.`id` = c.`requested_by`
+             LEFT JOIN {{update_policies}} p ON p.`id` = c.`policy_id`
              WHERE c.`device_id` = ?
              ORDER BY c.`id` DESC LIMIT ' . max(1, min(100, $limit)),
             [$deviceId]

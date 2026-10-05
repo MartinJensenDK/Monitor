@@ -42,6 +42,9 @@ if (can('users.view')) {
 if (App\Domain\Devices::isReady() && can('devices.enroll')) {
     $adminNav[] = ['path' => '/devices/enrollment', 'label' => t('nav.enrollment'), 'icon' => 'key', 'match' => '/devices/enrollment'];
 }
+if (App\Domain\UpdatePolicies::isReady() && can('devices.command_changes')) {
+    $adminNav[] = ['path' => '/devices/updates', 'label' => t('nav.update_policies'), 'icon' => 'download', 'match' => '/devices/updates'];
+}
 if (can('locations.manage')) {
     $adminNav[] = ['path' => '/locations', 'label' => t('nav.locations'), 'icon' => 'pin', 'match' => '/locations'];
 }

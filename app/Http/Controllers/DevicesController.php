@@ -19,6 +19,7 @@ use App\Domain\Devices;
 use App\Domain\EnrollmentKeys;
 use App\Domain\Groups;
 use App\Domain\Locations;
+use App\Domain\UpdatePolicies;
 
 /**
  * The two machine pages and everything you can do to one machine.
@@ -360,6 +361,11 @@ final class DevicesController extends Controller
             'locations' => Locations::isReady() ? Locations::all() : [],
             'assignable' => Groups::assignable(),
             'assigned' => Devices::groupAccess((int) $device['id']),
+            // Only for somebody who may install and restart: putting a machine
+            // under a policy is agreeing to both on a schedule.
+            'policies' => UpdatePolicies::isReady() && Auth::can('devices.command_changes')
+                ? UpdatePolicies::options()
+                : null,
         ]);
     }
 
@@ -438,6 +444,15 @@ final class DevicesController extends Controller
         }
 
         Devices::update((int) $device['id'], $changes);
+
+        // The policy is read only from somebody who may install and restart,
+        // whatever the form sent; anybody else leaves it as it was.
+        if (UpdatePolicies::isReady() && Auth::can('devices.command_changes') && $request->raw('update_policy_id') !== null) {
+            $policyId = $request->int('update_policy_id', 0);
+            if ($policyId === 0 || UpdatePolicies::find($policyId) !== null) {
+                UpdatePolicies::assign((int) $device['id'], $policyId > 0 ? $policyId : null);
+            }
+        }
 
         /** @var array<int,string> $access */
         $access = is_array($request->raw('group_access')) ? $request->raw('group_access') : [];

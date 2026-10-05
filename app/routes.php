@@ -18,6 +18,7 @@ use App\Http\Controllers\LocationsController;
 use App\Http\Controllers\MonitorsController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\UpdatePoliciesController;
 use App\Http\Controllers\UsersController;
 
 return static function (Router $router): void {
@@ -73,6 +74,16 @@ return static function (Router $router): void {
     $router->post('/devices/enrollment', [EnrollmentController::class, 'store'])->can('devices.enroll');
     $router->post('/devices/enrollment/{id}/revoke', [EnrollmentController::class, 'revoke'])->can('devices.enroll');
     $router->post('/devices/enrollment/{id}/delete', [EnrollmentController::class, 'destroy'])->can('devices.enroll');
+
+    // Automatic updates. Held by the lock on Install updates and Restart: a
+    // policy presses those buttons on a schedule. /new before /{id}, which
+    // would otherwise take it.
+    $router->get('/devices/updates', [UpdatePoliciesController::class, 'index'])->can('devices.command_changes');
+    $router->post('/devices/updates', [UpdatePoliciesController::class, 'store'])->can('devices.command_changes');
+    $router->get('/devices/updates/new', [UpdatePoliciesController::class, 'create'])->can('devices.command_changes');
+    $router->get('/devices/updates/{id}', [UpdatePoliciesController::class, 'edit'])->can('devices.command_changes');
+    $router->post('/devices/updates/{id}', [UpdatePoliciesController::class, 'update'])->can('devices.command_changes');
+    $router->post('/devices/updates/{id}/delete', [UpdatePoliciesController::class, 'destroy'])->can('devices.command_changes');
 
     $router->get('/devices/{uuid}', [DevicesController::class, 'show'])->can('devices.view');
     $router->get('/api/devices/list', [DevicesController::class, 'listLive'])->can('devices.view');

@@ -179,6 +179,22 @@ $isServer = Devices::normaliseKind((string) $device['kind']) === Devices::KIND_S
                 </span>
             </label>
 
+            <?php // Shown only to somebody who may install and restart; the
+                  // controller ignores the field from anybody else. ?>
+            <?php if (isset($policies) && is_array($policies)): ?>
+                <?php $policyNow = (int) ($device['update_policy_id'] ?? 0); ?>
+                <label class="field" style="margin-bottom:12px;">
+                    <span class="field__label"><?= e(t('policy.follows')) ?></span>
+                    <select class="select" name="update_policy_id">
+                        <option value="0" <?= $policyNow === 0 ? 'selected' : '' ?>><?= e(t('policy.follows_none')) ?></option>
+                        <?php foreach ($policies as $option): ?>
+                            <option value="<?= (int) $option['id'] ?>" <?= $policyNow === (int) $option['id'] ? 'selected' : '' ?>><?= e($option['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <span class="field__hint"><?= e(t('policy.follows_hint')) ?></span>
+                </label>
+            <?php endif; ?>
+
             <label class="check">
                 <input type="checkbox" name="disabled" value="1" <?= (string) $device['status'] === 'disabled' ? 'checked' : '' ?>>
                 <span>
